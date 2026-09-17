@@ -7,7 +7,7 @@ MicroSocks 是一个轻量级多线程 SOCKS5 服务端。上游支持 IPv4、IP
 ## 当前版本
 
 ```text
-打包版本：1.0.5-r2
+打包版本：1.0.5-r3
 上游版本：1.0.5
 上游 Tag：v1.0.5
 上游 Commit：98421a21c4adc4c77c0cf3a5d650cc28ad3e0107
@@ -32,7 +32,7 @@ MicroSocks 上游本身明确适合使用 musl 静态链接，因此这里不使
 MicroSocks 自己只占一个二进制资产：
 
 ```text
-microsocks-x86_64-linux
+microsocks
 ```
 
 所有软件共用：
@@ -46,7 +46,7 @@ software_versions.json
 ## 运行
 
 ```bash
-./microsocks-x86_64-linux -i <监听地址> -p <监听端口>
+./microsocks -i <监听地址> -p <监听端口>
 ```
 
 需要认证时按上游参数增加用户名和密码选项。监听到非回环地址会允许其他网络设备连接，应根据实际网络边界配置认证和防火墙，不要把未认证的 SOCKS 服务直接暴露到不受信任网络。

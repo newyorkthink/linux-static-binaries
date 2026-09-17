@@ -15,7 +15,7 @@ BUILD_BASE="${RUNNER_TEMP:-$SCRIPT_DIR/.build}"
 WORK_DIR="$BUILD_BASE/microsocks-$PACKAGE_VERSION"
 SOURCE_DIR="$WORK_DIR/source"
 DIST_DIR="$SCRIPT_DIR/dist"
-ARTIFACT_NAME='microsocks-x86_64-linux'
+ARTIFACT_NAME='microsocks'
 
 rm -rf "$WORK_DIR" "$DIST_DIR"
 mkdir -p "$WORK_DIR" "$DIST_DIR"

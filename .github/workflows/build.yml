@@ -43,9 +43,11 @@ jobs:
         with:
           software_key: microsocks
           build_script: microsocks/build.sh
-          artifact_path: microsocks/dist/microsocks-x86_64-linux
-          checksum_path: microsocks/dist/microsocks-x86_64-linux.sha256
+          artifact_path: microsocks/dist/microsocks
+          checksum_path: microsocks/dist/microsocks.sha256
           version_file: microsocks/dist/version.txt
           license_file: microsocks/COPYING
-          asset_name: microsocks-x86_64-linux
+          asset_name: microsocks
+          legacy_asset_names: |
+            microsocks-x86_64-linux
           github_token: ${{ github.token }}

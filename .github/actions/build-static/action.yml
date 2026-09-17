@@ -23,6 +23,10 @@ inputs:
   asset_name:
     description: Stable binary asset name in the latest Release.
     required: true
+  legacy_asset_names:
+    description: Optional newline-separated obsolete Release asset names to remove after the new asset and manifest are published successfully.
+    required: false
+    default: ''
   github_token:
     description: GitHub token used to create or update the rolling Release.
     required: true
@@ -92,6 +96,7 @@ runs:
         ARTIFACT_PATH: ${{ inputs.artifact_path }}
         VERSION_FILE: ${{ inputs.version_file }}
         ASSET_NAME: ${{ inputs.asset_name }}
+        LEGACY_ASSET_NAMES: ${{ inputs.legacy_asset_names }}
       run: |
         set -Eeuo pipefail
 
@@ -257,11 +262,26 @@ runs:
             raise SystemExit(f'{key} 写入 software_versions.json 后校验失败')
         PY
 
-        for legacy_name in "$ASSET_NAME.sha256" "$SOFTWARE_KEY-LICENSE.txt" "$SOFTWARE_KEY-version.txt"; do
-          legacy_asset_id="$(gh api "repos/$GITHUB_REPOSITORY/releases/$release_id/assets?per_page=100" --paginate --jq ".[] | select(.name == \"$legacy_name\") | .id" | head -n 1)"
-          if [[ -n "$legacy_asset_id" ]]; then
-            gh api --method DELETE "repos/$GITHUB_REPOSITORY/releases/assets/$legacy_asset_id" >/dev/null
+        for generated_legacy_name in "$ASSET_NAME.sha256" "$SOFTWARE_KEY-LICENSE.txt" "$SOFTWARE_KEY-version.txt"; do
+          generated_legacy_asset_id="$(gh api "repos/$GITHUB_REPOSITORY/releases/$release_id/assets?per_page=100" --paginate --jq ".[] | select(.name == \"$generated_legacy_name\") | .id" | head -n 1)"
+          if [[ -n "$generated_legacy_asset_id" ]]; then
+            gh api --method DELETE "repos/$GITHUB_REPOSITORY/releases/assets/$generated_legacy_asset_id" >/dev/null
           fi
         done
+
+        if [[ -n "$LEGACY_ASSET_NAMES" ]]; then
+          while IFS= read -r legacy_name; do
+            [[ -n "$legacy_name" ]] || continue
+            [[ "$legacy_name" != "$ASSET_NAME" ]] || continue
+
+            legacy_asset_id="$(
+              gh api "repos/$GITHUB_REPOSITORY/releases/$release_id/assets?per_page=100" --paginate --jq '.[] | [.id,.name] | @tsv' |
+                awk -F '\t' -v name="$legacy_name" '$2 == name {print $1; exit}'
+            )"
+            if [[ -n "$legacy_asset_id" ]]; then
+              gh api --method DELETE "repos/$GITHUB_REPOSITORY/releases/assets/$legacy_asset_id" >/dev/null
+            fi
+          done <<< "$LEGACY_ASSET_NAMES"
+        fi
 
         echo "$SOFTWARE_KEY 已发布，并更新统一 software_versions.json。"

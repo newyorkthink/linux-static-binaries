@@ -11,13 +11,14 @@
 - 优先从上游官方源码构建，并固定上游版本、Tag 和对应 Commit，避免构建来源漂移。
 - 对适合静态链接的小型 C/C++ 工具，优先使用 musl 生成真正的静态 ELF；不为了“单文件”额外套 AppImage、RunImage、Sharun 或其他运行时包装层。
 - Release 采用固定 `latest` Tag 和固定资产名，便于脚本长期引用。
+- 二进制 Release 资产名直接使用软件名，不追加 `-x86_64-linux` 等架构 / 平台尾缀。
 - 构建产物不提交进 Git 仓库，由 GitHub Actions 生成并发布到 Releases。
 
 ## 当前软件
 
 | 软件 | 打包版本 | 上游版本 | 架构 | 构建方式 | Release 资产 |
 | --- | --- | --- | --- | --- | --- |
-| [MicroSocks](./microsocks/) | `1.0.5-r2` | `1.0.5` | `x86_64` | musl 静态链接 | `microsocks-x86_64-linux` |
+| [MicroSocks](./microsocks/) | `1.0.5-r3` | `1.0.5` | `x86_64` | musl 静态链接 | `microsocks` |
 
 ## 目录结构
 
@@ -37,7 +38,7 @@ microsocks/
 
 正式产物统一发布到仓库的 `latest` Release，Release 标题固定为 `Latest`。
 
-每个软件只保留一个稳定的二进制资产名，不把版本号写进资产文件名。版本更新后覆盖 `latest` 中对应二进制；历史版本继续记录在软件目录的 `VERSIONS.md`，并可通过 Git 提交历史追溯对应构建定义。
+每个软件只保留一个稳定的二进制资产名，不把版本号、架构或平台写进资产文件名。版本更新后覆盖 `latest` 中对应二进制；历史版本继续记录在软件目录的 `VERSIONS.md`，并可通过 Git 提交历史追溯对应构建定义。
 
 所有软件共用一个 Release 元数据文件：
 
@@ -50,9 +51,9 @@ software_versions.json
 ```json
 {
   "microsocks": {
-    "asset": "microsocks-x86_64-linux",
+    "asset": "microsocks",
     "sha256": "<SHA-256>",
-    "version": "1.0.5-r2"
+    "version": "1.0.5-r3"
   }
 }
 ```
@@ -67,7 +68,7 @@ software_versions.json
 2. `VERSIONS.md`：按版本追加历史记录，不覆盖旧记录。
 3. 构建输出中的 `dist/version.txt`：由构建脚本根据 `version.conf` 生成，仅供 Release 发布流程更新 `software_versions.json`。
 
-上游版本不变但构建方式、编译参数或 Release 资产结构发生实质变化时，递增打包修订号，例如 `1.0.5-r1` → `1.0.5-r2`。
+上游版本不变但构建方式、编译参数或 Release 资产结构发生实质变化时，递增打包修订号，例如 `1.0.5-r2` → `1.0.5-r3`。
 
 ## 本地构建
 
