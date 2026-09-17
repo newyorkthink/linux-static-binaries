@@ -4,28 +4,30 @@
 
 MicroSocks 是一个轻量级多线程 SOCKS5 服务端。上游支持 IPv4、IPv6、DNS 和 SOCKS5 用户名 / 密码认证；当前不支持 UDP。
 
-## 当前版本
+## 版本获取规则
 
-```text
-打包版本：1.0.5-r3
-上游版本：1.0.5
-上游 Tag：v1.0.5
-上游 Commit：98421a21c4adc4c77c0cf3a5d650cc28ad3e0107
-```
+目标应用版本不在仓库中锁定。每次正式 Build 都会：
 
-版本固定值统一维护在 [`version.conf`](./version.conf)，历史记录见 [`VERSIONS.md`](./VERSIONS.md)。
+1. 读取 MicroSocks 官方 GitHub `releases/latest`。
+2. 拒绝 draft / prerelease，并只接受 `v<数字版本>` 形式的稳定 Release Tag。
+3. 在本次 Build 内动态解析该 Tag 对应的 Commit SHA，Checkout 后再次核对实际 Commit。
+4. 仅把本次动态解析出的上游版本与本仓库打包修订号组合后写入 `dist/version.txt` 和 Release 的 `software_versions.json`；Version / Tag / Commit 不回写仓库作为下次 Build 的锁定值。
+
+[`version.conf`](./version.conf) 只保存本仓库打包修订号，不保存 MicroSocks Version / Tag / Commit。
 
 ## 构建方式
 
-当前版本直接从固定的上游 Git Tag 构建：
-
-1. Checkout `version.conf` 指定的 Tag。
-2. 核对实际 Commit 与固定 Commit 完全一致。
+1. 动态解析当前最新稳定上游 Tag 及其 Commit。
+2. Checkout 该 Tag，并核对实际 Commit 与本次动态解析值完全一致。
 3. 使用 `musl-gcc` 和 `-static` 编译。
 4. 使用 `file` / `readelf` 静态检查最终 ELF，确认不存在 ELF interpreter 和动态 `NEEDED` 项。
 5. 生成构建期 SHA-256 和版本文本；共享 GitHub Action 上传二进制后，将版本和 SHA-256 合并到统一 `software_versions.json`。
 
 MicroSocks 上游本身明确适合使用 musl 静态链接，因此这里不使用 AppImage、RunImage 或其他动态库打包层。
+
+## 标准运行时安装集
+
+MicroSocks 上游标准安装只提供 `microsocks` 主程序，没有需要同时发布的附加运行时命令、脚本或符号链接，因此 Release 保持单一静态 ELF。
 
 ## Release 资产
 
@@ -41,7 +43,7 @@ microsocks
 software_versions.json
 ```
 
-其中 `microsocks` 条目记录当前打包版本、固定资产名和最终二进制 SHA-256。构建目录中的 `dist/version.txt` 与 `*.sha256` 仅作为构建和发布过程的内部元数据，不再单独上传到 Release。
+其中 `microsocks` 条目记录本次 Build 动态解析出的打包版本、固定资产名和最终二进制 SHA-256。构建目录中的 `dist/version.txt` 与 `*.sha256` 仅作为构建和发布过程的内部元数据，不再单独上传到 Release。
 
 ## 运行
 

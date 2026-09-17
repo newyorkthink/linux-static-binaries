@@ -6,15 +6,39 @@ REPO_ROOT="$(cd -- "$SCRIPT_DIR/.." && pwd)"
 # shellcheck source=/dev/null
 source "$SCRIPT_DIR/version.conf"
 
-: "${SOCAT_VERSION:?SOCAT_VERSION 未设置}"
-: "${SOCAT_TAG:?SOCAT_TAG 未设置}"
-: "${SOCAT_COMMIT:?SOCAT_COMMIT 未设置}"
 : "${PACKAGE_REVISION:?PACKAGE_REVISION 未设置}"
 : "${ALPINE_IMAGE:?ALPINE_IMAGE 未设置}"
 
-PACKAGE_VERSION="${SOCAT_VERSION}-r${PACKAGE_REVISION}"
+UPSTREAM_URL='https://repo.or.cz/socat.git'
 DIST_DIR="$SCRIPT_DIR/dist"
 ARTIFACT_NAME='socat.tar.xz'
+
+stable_tags="$(
+    git ls-remote --tags --refs "$UPSTREAM_URL" 'refs/tags/tag-*' |
+        awk '$2 ~ /^refs\/tags\/tag-[0-9]+(\.[0-9]+)+$/ {sub(/^refs\/tags\//, "", $2); print $2}'
+)"
+[[ -n "$stable_tags" ]] || {
+    echo '无法从上游解析 socat 最新稳定 Tag。' >&2
+    exit 1
+}
+
+SOCAT_TAG="$(printf '%s\n' "$stable_tags" | sort -V | tail -n 1)"
+SOCAT_VERSION="${SOCAT_TAG#tag-}"
+[[ "$SOCAT_VERSION" =~ ^[0-9]+([.][0-9]+)+$ ]] || {
+    echo "解析出的 socat 稳定版本格式异常：$SOCAT_TAG" >&2
+    exit 1
+}
+
+SOCAT_COMMIT="$(git ls-remote --tags "$UPSTREAM_URL" "refs/tags/$SOCAT_TAG^{}" | awk 'NR == 1 {print $1}')"
+if [[ -z "$SOCAT_COMMIT" ]]; then
+    SOCAT_COMMIT="$(git ls-remote --tags --refs "$UPSTREAM_URL" "refs/tags/$SOCAT_TAG" | awk 'NR == 1 {print $1}')"
+fi
+[[ "$SOCAT_COMMIT" =~ ^[0-9a-f]{40}$ ]] || {
+    echo "无法解析 $SOCAT_TAG 对应的上游 Commit。" >&2
+    exit 1
+}
+
+PACKAGE_VERSION="${SOCAT_VERSION}-r${PACKAGE_REVISION}"
 
 rm -rf "$DIST_DIR"
 mkdir -p "$DIST_DIR"
@@ -53,7 +77,7 @@ docker run --rm \
 
         ACTUAL_COMMIT="$(git -C "$SOURCE_DIR" rev-parse HEAD)"
         if [ "$ACTUAL_COMMIT" != "$SOCAT_COMMIT" ]; then
-            printf "上游 Commit 不匹配：期望 %s，实际 %s\n" "$SOCAT_COMMIT" "$ACTUAL_COMMIT" >&2
+            printf "上游 Commit 不匹配：动态解析 %s，实际 Checkout %s\n" "$SOCAT_COMMIT" "$ACTUAL_COMMIT" >&2
             exit 1
         fi
 
@@ -97,9 +121,9 @@ usr/share/licenses/socat/COPYING.OpenSSL
         )"
 
         if [ "$(printf "%s\n" "$expected_paths" | sed "/^$/d" | sort)" != "$actual_paths" ]; then
-            echo "标准运行时安装集与预期不一致。" >&2
-            printf "期望：\n%s\n" "$(printf "%s\n" "$expected_paths" | sed "/^$/d" | sort)" >&2
-            printf "实际：\n%s\n" "$actual_paths" >&2
+            echo "标准运行时安装集与已核查布局不一致；可能是上游安装集发生变化，禁止静默遗漏或新增文件。" >&2
+            printf "已核查布局：\n%s\n" "$(printf "%s\n" "$expected_paths" | sed "/^$/d" | sort)" >&2
+            printf "本次上游实际安装：\n%s\n" "$actual_paths" >&2
             exit 1
         fi
 
@@ -134,4 +158,5 @@ printf '%s\n' "$PACKAGE_VERSION" > "$DIST_DIR/version.txt"
     sha256sum "$ARTIFACT_NAME" > "$ARTIFACT_NAME.sha256"
 )
 
-printf 'Built %s (%s)\n' "$ARTIFACT_NAME" "$PACKAGE_VERSION"
+printf 'Built %s (%s, tag %s, commit %s)\n' \
+    "$ARTIFACT_NAME" "$PACKAGE_VERSION" "$SOCAT_TAG" "$SOCAT_COMMIT"
