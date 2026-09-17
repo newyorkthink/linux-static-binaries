@@ -42,7 +42,7 @@ usr/share/man/man1/
 1. 动态解析官方当前最新稳定 Tag 及其 Commit。
 2. 在固定的 Alpine musl 构建环境中安装编译工具链，以及 OpenSSL、readline、ncurses 的开发文件和静态库。
 3. Checkout 本次动态 Tag，并核对实际 Commit 与本次动态解析值完全一致。
-4. 通过 `autoreconf` 生成 configure 文件，使用 `-static` 构建 `socat`、`filan`、`procan`，同时保留 OpenSSL 和 readline 支持。
+4. Git Tag 源码树不包含生成后的 `configure`；按上游 `configure.ac` 的说明直接运行 `autoconf` 生成 `configure`，再使用 `-static` 构建 `socat`、`filan`、`procan`，同时保留 OpenSSL 和 readline 支持。
 5. 使用上游自己的 `make install DESTDIR=...` 生成标准安装树，不手工重建文件布局。
 6. 静态检查 `socat1`、`filan`、`procan`，确认均为 64-bit ELF，且不存在 ELF interpreter 和动态 `NEEDED` 项。
 7. 核对完整标准运行时安装集、符号链接和 man page 后，将整个 `usr/` 安装树归档为 `socat.tar.xz`。

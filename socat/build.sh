@@ -82,7 +82,7 @@ docker run --rm \
         fi
 
         cd "$SOURCE_DIR"
-        autoreconf -fi
+        autoconf
 
         CC=gcc \
         CFLAGS="-Os" \
