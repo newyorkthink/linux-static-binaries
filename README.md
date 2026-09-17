@@ -7,69 +7,65 @@
 
 ## 仓库说明
 
-- 每个软件使用独立目录维护源码版本、构建脚本、版本历史和说明文档。
+- 每个软件使用独立目录维护上游版本、构建脚本、版本历史和说明文档。
 - 优先从上游官方源码构建，并固定上游版本、Tag 和对应 Commit，避免构建来源漂移。
-- 对适合静态链接的小型 C/C++ 工具，优先使用 musl 生成真正的静态 ELF；不为了“单文件”额外套 AppImage、RunImage、Sharun 或其他运行时包装层。
-- Release 采用固定 `latest` Tag 和固定资产名，便于脚本长期引用。
-- 二进制 Release 资产名直接使用软件名，不追加 `-x86_64-linux` 等架构 / 平台尾缀。
+- 对适合静态链接的软件优先生成真正的静态 ELF，不为了“单文件”额外套不必要的运行时包装层。
+- Release 采用固定 `latest` Tag 和稳定资产名，便于脚本长期引用。
+- 二进制 Release 资产名直接使用软件可执行名，不追加版本号、架构或平台尾缀。
 - 构建产物不提交进 Git 仓库，由 GitHub Actions 生成并发布到 Releases。
 
-## 当前软件
-
-| 软件 | 打包版本 | 上游版本 | 架构 | 构建方式 | Release 资产 |
-| --- | --- | --- | --- | --- | --- |
-| [MicroSocks](./microsocks/) | `1.0.5-r3` | `1.0.5` | `x86_64` | musl 静态链接 | `microsocks` |
-
 ## 目录结构
+
+每个软件独立维护，根 README 不维护具体软件清单，避免软件数量增加后重复维护大量条目。
 
 ```text
 .github/
   actions/build-static/   共享静态二进制构建、发布和版本清单更新 Action
-  workflows/build.yml     唯一正式构建 Workflow
-microsocks/
-  build.sh                MicroSocks 构建脚本
+  workflows/build.yml     正式构建 Workflow
+<software>/
+  build.sh                软件构建脚本
   version.conf            固定上游版本、Tag、Commit 和打包修订号
   VERSIONS.md             版本历史
   README.md               软件说明
-  COPYING                 上游许可证
+  COPYING                 上游许可证（文件名按上游实际情况保留）
 ```
+
+具体软件的构建方式、版本信息、运行方法和限制，以对应软件目录中的 README、`version.conf` 和 `VERSIONS.md` 为准。
 
 ## Releases
 
 正式产物统一发布到仓库的 `latest` Release，Release 标题固定为 `Latest`。
 
-每个软件只保留一个稳定的二进制资产名，不把版本号、架构或平台写进资产文件名。版本更新后覆盖 `latest` 中对应二进制；历史版本继续记录在软件目录的 `VERSIONS.md`，并可通过 Git 提交历史追溯对应构建定义。
-
-所有软件共用一个 Release 元数据文件：
+每个软件只保留必要的稳定二进制资产；版本更新后覆盖 `latest` 中对应资产。所有软件的当前版本、资产名和 SHA-256 统一记录在：
 
 ```text
 software_versions.json
 ```
 
-格式与 `linux-packaging` 的统一版本清单一致，每个软件只占一个条目：
+统一清单按 `software_key` 保存各软件元数据：
 
 ```json
 {
-  "microsocks": {
-    "asset": "microsocks",
+  "<software_key>": {
+    "asset": "<asset_name>",
     "sha256": "<SHA-256>",
-    "version": "1.0.5-r3"
+    "version": "<package_version>"
   }
 }
 ```
 
-以后即使有几十个软件，也只增加各自的二进制资产；版本号和 SHA-256 不再拆成大量独立 `*-version.txt` / `*.sha256` Release 资产。
+因此仓库增加软件时，不需要在根 README 继续追加软件表格、版本号、命令或 Release 资产列表。
 
 ## 版本管理
 
-每个软件必须同时维护：
+每个软件独立维护：
 
 1. `version.conf`：当前构建固定使用的上游版本、Tag、Commit，以及仓库自己的打包修订号。
 2. `VERSIONS.md`：按版本追加历史记录，不覆盖旧记录。
-3. 构建输出中的 `dist/version.txt`：由构建脚本根据 `version.conf` 生成，仅供 Release 发布流程更新 `software_versions.json`。
+3. 构建输出中的 `dist/version.txt`：由构建脚本生成，仅供发布流程更新 `software_versions.json`。
 
-上游版本不变但构建方式、编译参数或 Release 资产结构发生实质变化时，递增打包修订号，例如 `1.0.5-r2` → `1.0.5-r3`。
+上游版本不变但构建方式、编译参数或 Release 资产结构发生实质变化时，递增对应软件的打包修订号。
 
 ## 本地构建
 
-不同软件的依赖和构建方式以各自目录的 README 为准。仓库不会要求宿主系统安装运行时动态库来执行最终静态二进制，但内核、CPU 架构以及软件自身功能仍可能存在平台要求。
+不同软件的依赖和构建方式以各自目录的 README 为准。最终静态二进制仍可能受内核、CPU 架构以及软件自身功能要求限制。
