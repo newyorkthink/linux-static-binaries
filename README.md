@@ -1,6 +1,6 @@
 # Linux Static Binaries
 
-用于从上游源码构建可移植、低依赖的 Linux 静态 ELF 二进制。
+用于从上游源码构建可移植、低依赖的 Linux 静态 ELF 二进制及其完整标准运行时安装集。
 
 > [!IMPORTANT]
 > AI coding agents 在读取、修改或提交本仓库前，必须先完整阅读 [AGENTS.md](./AGENTS.md)。
@@ -10,8 +10,9 @@
 - 每个软件使用独立目录维护上游版本、构建脚本、版本历史和说明文档。
 - 优先从上游官方源码构建，并固定上游版本、Tag 和对应 Commit，避免构建来源漂移。
 - 对适合静态链接的软件优先生成真正的静态 ELF，不为了“单文件”额外套不必要的运行时包装层。
+- 新增或更新软件时必须核查上游标准安装目标和发行版包文件列表；若标准运行时安装集包含附加命令、脚本、符号链接或 man page，必须完整保留，不能只发布主程序。
 - Release 采用固定 `latest` Tag 和稳定资产名，便于脚本长期引用。
-- 二进制 Release 资产名直接使用软件可执行名，不追加版本号、架构或平台尾缀。
+- 单一二进制资产名直接使用软件可执行名；包含完整安装树的软件使用固定 `.tar.xz` 归档名，不追加版本号、架构或平台尾缀。
 - 构建产物不提交进 Git 仓库，由 GitHub Actions 生成并发布到 Releases。
 
 ## 目录结构
@@ -20,23 +21,23 @@
 
 ```text
 .github/
-  actions/build-static/   共享静态二进制构建、发布和版本清单更新 Action
+  actions/build-static/   共享静态构建、发布和版本清单更新 Action
   workflows/build.yml     正式构建 Workflow
 <software>/
   build.sh                软件构建脚本
   version.conf            固定上游版本、Tag、Commit 和打包修订号
   VERSIONS.md             版本历史
   README.md               软件说明
-  COPYING                 上游许可证（文件名按上游实际情况保留）
+  <license files>         上游许可证文件（按上游实际情况保留或由固定源码纳入发布归档）
 ```
 
-具体软件的构建方式、版本信息、运行方法和限制，以对应软件目录中的 README、`version.conf` 和 `VERSIONS.md` 为准。
+具体软件的构建方式、版本信息、标准运行时安装集、运行方法和限制，以对应软件目录中的 README、`version.conf` 和 `VERSIONS.md` 为准。
 
 ## Releases
 
 正式产物统一发布到仓库的 `latest` Release，Release 标题固定为 `Latest`。
 
-每个软件只保留必要的稳定二进制资产；版本更新后覆盖 `latest` 中对应资产。所有软件的当前版本、资产名和 SHA-256 统一记录在：
+单一可执行程序只保留必要的稳定二进制资产；标准运行时安装集包含多个文件的软件使用一个完整保留目录结构和符号链接的稳定归档资产。版本更新后覆盖 `latest` 中对应资产。所有软件的当前版本、资产名和 SHA-256 统一记录在：
 
 ```text
 software_versions.json
