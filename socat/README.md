@@ -10,7 +10,7 @@ socat 是一个通用双向数据中继工具，可在文件、管道、TTY、UN
 打包版本：1.8.1.3-r1
 上游版本：1.8.1.3
 上游 Tag：tag-1.8.1.3
-上游 Commit：af5388c898c7bb60997935aee93c223deba60c4a
+上游 Commit：12c08bf66d709fba17035ce95d85bd218428d9ba
 ```
 
 版本固定值统一维护在 [`version.conf`](./version.conf)，历史记录见 [`VERSIONS.md`](./VERSIONS.md)。
