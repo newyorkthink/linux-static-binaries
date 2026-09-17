@@ -1,9 +1,9 @@
 name: Build and Publish Static Binary
-description: Build one package, validate its static ELF output, and publish stable assets to the rolling latest Release.
+description: Build one package, validate its static ELF output, publish its binary, and update the shared software_versions.json manifest.
 
 inputs:
   software_key:
-    description: Stable software identifier used for release metadata file names.
+    description: Stable software identifier used as the software_versions.json key.
     required: true
   build_script:
     description: Repository-relative build script path.
@@ -12,13 +12,13 @@ inputs:
     description: Repository-relative final binary path.
     required: true
   checksum_path:
-    description: Repository-relative SHA-256 file path.
+    description: Repository-relative SHA-256 file path used for build-time validation.
     required: true
   version_file:
-    description: Repository-relative generated version file path.
+    description: Repository-relative generated version file used to update software_versions.json.
     required: true
   license_file:
-    description: Repository-relative license file path.
+    description: Repository-relative upstream license file that must remain present in the repository.
     required: true
   asset_name:
     description: Stable binary asset name in the latest Release.
@@ -54,6 +54,7 @@ runs:
     - name: Validate release inputs
       shell: bash
       env:
+        SOFTWARE_KEY: ${{ inputs.software_key }}
         ARTIFACT_PATH: ${{ inputs.artifact_path }}
         CHECKSUM_PATH: ${{ inputs.checksum_path }}
         VERSION_FILE: ${{ inputs.version_file }}
@@ -62,6 +63,7 @@ runs:
       run: |
         set -Eeuo pipefail
 
+        [[ "$SOFTWARE_KEY" =~ ^[A-Za-z0-9._-]+$ ]] || { echo "software_key 非法：$SOFTWARE_KEY" >&2; exit 1; }
         [[ -s "$ARTIFACT_PATH" ]] || { echo "产物不存在或为空：$ARTIFACT_PATH" >&2; exit 1; }
         [[ -s "$CHECKSUM_PATH" ]] || { echo "SHA-256 文件不存在或为空：$CHECKSUM_PATH" >&2; exit 1; }
         [[ -s "$VERSION_FILE" ]] || { echo "版本文件不存在或为空：$VERSION_FILE" >&2; exit 1; }
@@ -73,6 +75,7 @@ runs:
 
         expected_sha256="$(awk 'NR == 1 {print tolower($1)}' "$CHECKSUM_PATH")"
         actual_sha256="$(sha256sum "$ARTIFACT_PATH" | awk '{print tolower($1)}')"
+        [[ "$expected_sha256" =~ ^[0-9a-f]{64}$ ]] || { echo 'SHA-256 文件内容无效。' >&2; exit 1; }
         [[ "$expected_sha256" == "$actual_sha256" ]] || {
           echo 'SHA-256 文件与最终二进制不一致。' >&2
           exit 1
@@ -81,15 +84,13 @@ runs:
         version="$(tr -d '\r\n' < "$VERSION_FILE")"
         [[ -n "$version" ]] || { echo '版本内容为空。' >&2; exit 1; }
 
-    - name: Publish rolling latest Release
+    - name: Publish binary and update shared version manifest
       shell: bash
       env:
         GH_TOKEN: ${{ inputs.github_token }}
         SOFTWARE_KEY: ${{ inputs.software_key }}
         ARTIFACT_PATH: ${{ inputs.artifact_path }}
-        CHECKSUM_PATH: ${{ inputs.checksum_path }}
         VERSION_FILE: ${{ inputs.version_file }}
-        LICENSE_FILE: ${{ inputs.license_file }}
         ASSET_NAME: ${{ inputs.asset_name }}
       run: |
         set -Eeuo pipefail
@@ -99,23 +100,168 @@ runs:
             --repo "$GITHUB_REPOSITORY" \
             --target "$GITHUB_SHA" \
             --title 'Latest' \
-            --notes 'Rolling release of portable static Linux binaries.' \
+            --notes 'Rolling release of portable static Linux binaries. Versions and SHA-256 checksums are tracked in software_versions.json.' \
             --latest
         fi
 
-        RELEASE_DIR="$RUNNER_TEMP/release-$SOFTWARE_KEY"
-        rm -rf "$RELEASE_DIR"
-        mkdir -p "$RELEASE_DIR"
-
-        cp "$ARTIFACT_PATH" "$RELEASE_DIR/$ASSET_NAME"
-        cp "$CHECKSUM_PATH" "$RELEASE_DIR/$ASSET_NAME.sha256"
-        cp "$LICENSE_FILE" "$RELEASE_DIR/$SOFTWARE_KEY-LICENSE.txt"
-        cp "$VERSION_FILE" "$RELEASE_DIR/$SOFTWARE_KEY-version.txt"
-
-        gh release upload latest \
-          "$RELEASE_DIR/$ASSET_NAME" \
-          "$RELEASE_DIR/$ASSET_NAME.sha256" \
-          "$RELEASE_DIR/$SOFTWARE_KEY-LICENSE.txt" \
-          "$RELEASE_DIR/$SOFTWARE_KEY-version.txt" \
+        gh release upload latest "$ARTIFACT_PATH" \
           --repo "$GITHUB_REPOSITORY" \
           --clobber
+
+        version="$(tr -d '\r\n' < "$VERSION_FILE")"
+        local_sha256="$(sha256sum "$ARTIFACT_PATH" | awk '{print tolower($1)}')"
+
+        release_json="$RUNNER_TEMP/latest-release-$SOFTWARE_KEY.json"
+        matched=false
+        for attempt in $(seq 1 12); do
+          gh api "repos/$GITHUB_REPOSITORY/releases/tags/latest" > "$release_json"
+          release_sha256="$(python3 - "$release_json" "$ASSET_NAME" <<'PY'
+        import json, re, sys
+        path, asset_name = sys.argv[1:]
+        data = json.load(open(path, encoding='utf-8'))
+        rows = [a for a in data.get('assets', []) if a.get('name') == asset_name]
+        if len(rows) != 1:
+            raise SystemExit(0)
+        digest = rows[0].get('digest') or ''
+        if re.fullmatch(r'sha256:[0-9a-fA-F]{64}', digest):
+            print(digest.split(':', 1)[1].lower())
+        PY
+        )"
+          if [[ "$release_sha256" == "$local_sha256" ]]; then
+            matched=true
+            break
+          fi
+          sleep 5
+        done
+        [[ "$matched" == true ]] || {
+          echo "$ASSET_NAME 的 GitHub Release digest 与当前 Build SHA-256 不一致，禁止更新版本清单。" >&2
+          exit 1
+        }
+
+        lock_name='software_versions.json.lock'
+        lock_file="$RUNNER_TEMP/$lock_name"
+        lock_asset_id=''
+        lock_owned=false
+        staged_asset_id=''
+        staged_promoted=false
+        printf '%s\n' "run=$GITHUB_RUN_ID job=$GITHUB_JOB attempt=$GITHUB_RUN_ATTEMPT" > "$lock_file"
+
+        cleanup() {
+          if [[ "$staged_promoted" != true && -n "$staged_asset_id" ]]; then
+            gh api --method DELETE "repos/$GITHUB_REPOSITORY/releases/assets/$staged_asset_id" >/dev/null 2>&1 || true
+          fi
+          if [[ "$lock_owned" == true && -n "$lock_asset_id" ]]; then
+            gh api --method DELETE "repos/$GITHUB_REPOSITORY/releases/assets/$lock_asset_id" >/dev/null 2>&1 || true
+          fi
+        }
+        trap cleanup EXIT
+
+        acquired=false
+        for attempt in $(seq 1 180); do
+          if gh release upload latest "$lock_file" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
+            lock_asset_id="$(gh api "repos/$GITHUB_REPOSITORY/releases/tags/latest" --jq ".assets[] | select(.name == \"$lock_name\") | .id" | head -n 1)"
+            [[ -n "$lock_asset_id" ]] || { echo '已取得版本清单锁，但无法读取锁资产 ID。' >&2; exit 1; }
+            lock_owned=true
+            acquired=true
+            break
+          fi
+
+          lock_row="$(gh api "repos/$GITHUB_REPOSITORY/releases/tags/latest" --jq ".assets[] | select(.name == \"$lock_name\") | [.id,.created_at] | @tsv" | head -n 1 || true)"
+          if [[ -n "$lock_row" ]]; then
+            lock_id="${lock_row%%$'\t'*}"
+            created_at="${lock_row#*$'\t'}"
+            created_epoch="$(date -u -d "$created_at" +%s 2>/dev/null || echo 0)"
+            now_epoch="$(date -u +%s)"
+            if (( created_epoch > 0 && now_epoch - created_epoch > 600 )); then
+              gh api --method DELETE "repos/$GITHUB_REPOSITORY/releases/assets/$lock_id" >/dev/null 2>&1 || true
+            fi
+          fi
+          sleep 2
+        done
+        [[ "$acquired" == true ]] || { echo '等待 software_versions.json 写锁超时。' >&2; exit 1; }
+
+        workdir="$RUNNER_TEMP/software-versions-$SOFTWARE_KEY"
+        manifest="$workdir/software_versions.json"
+        verify_dir="$workdir/verify"
+        rm -rf "$workdir"
+        mkdir -p "$workdir" "$verify_dir"
+
+        if gh release view latest --repo "$GITHUB_REPOSITORY" --json assets --jq '.assets[].name' | grep -Fxq 'software_versions.json'; then
+          gh release download latest --repo "$GITHUB_REPOSITORY" --pattern 'software_versions.json' --dir "$workdir" --clobber
+        else
+          printf '{}\n' > "$manifest"
+        fi
+
+        python3 - "$manifest" "$SOFTWARE_KEY" "$version" "$ASSET_NAME" "$release_sha256" <<'PY'
+        import json, sys
+        path, key, version, asset, sha256 = sys.argv[1:]
+        with open(path, encoding='utf-8') as f:
+            data = json.load(f)
+        if not isinstance(data, dict):
+            raise SystemExit('software_versions.json 不是 JSON 对象')
+        data[key] = {'version': version, 'asset': asset, 'sha256': sha256}
+        with open(path, 'w', encoding='utf-8') as f:
+            json.dump(data, f, ensure_ascii=False, indent=2, sort_keys=True)
+            f.write('\n')
+        PY
+
+        nonce="${GITHUB_RUN_ID}-${GITHUB_JOB}-${GITHUB_RUN_ATTEMPT}-$(date -u +%s)-$RANDOM"
+        staged_name="software_versions.json.pending.$nonce"
+        staged_path="$workdir/$staged_name"
+        cp "$manifest" "$staged_path"
+        staged_sha256="$(sha256sum "$staged_path" | awk '{print tolower($1)}')"
+
+        gh release upload latest "$staged_path" --repo "$GITHUB_REPOSITORY"
+        staged_asset_id="$(gh api "repos/$GITHUB_REPOSITORY/releases/tags/latest" --jq ".assets[] | select(.name == \"$staged_name\") | .id" | head -n 1)"
+        [[ -n "$staged_asset_id" ]] || { echo '临时版本清单已上传，但无法读取资产 ID。' >&2; exit 1; }
+
+        staged_verify_dir="$workdir/staged-verify"
+        mkdir -p "$staged_verify_dir"
+        gh release download latest --repo "$GITHUB_REPOSITORY" --pattern "$staged_name" --dir "$staged_verify_dir" --clobber
+        downloaded_staged_sha256="$(sha256sum "$staged_verify_dir/$staged_name" | awk '{print tolower($1)}')"
+        [[ "$downloaded_staged_sha256" == "$staged_sha256" ]] || {
+          echo '临时版本清单上传后 SHA-256 校验失败，保留旧正式清单。' >&2
+          exit 1
+        }
+
+        release_id="$(gh api "repos/$GITHUB_REPOSITORY/releases/tags/latest" --jq '.id')"
+        current_asset_id="$(gh api "repos/$GITHUB_REPOSITORY/releases/$release_id/assets?per_page=100" --paginate --jq '.[] | select(.name == "software_versions.json") | .id' | head -n 1)"
+        backup_asset_id=''
+
+        if [[ -n "$current_asset_id" ]]; then
+          backup_name="software_versions.json.previous.$nonce"
+          gh api --method PATCH "repos/$GITHUB_REPOSITORY/releases/assets/$current_asset_id" -f name="$backup_name" >/dev/null
+          backup_asset_id="$current_asset_id"
+        fi
+
+        if ! gh api --method PATCH "repos/$GITHUB_REPOSITORY/releases/assets/$staged_asset_id" -f name='software_versions.json' >/dev/null; then
+          if [[ -n "$backup_asset_id" ]]; then
+            gh api --method PATCH "repos/$GITHUB_REPOSITORY/releases/assets/$backup_asset_id" -f name='software_versions.json' >/dev/null 2>&1 || true
+          fi
+          echo '切换正式版本清单名称失败；已尝试恢复上一份正式清单。' >&2
+          exit 1
+        fi
+        staged_promoted=true
+
+        if [[ -n "$backup_asset_id" ]]; then
+          gh api --method DELETE "repos/$GITHUB_REPOSITORY/releases/assets/$backup_asset_id" >/dev/null
+        fi
+
+        gh release download latest --repo "$GITHUB_REPOSITORY" --pattern 'software_versions.json' --dir "$verify_dir" --clobber
+        python3 - "$verify_dir/software_versions.json" "$SOFTWARE_KEY" "$version" "$ASSET_NAME" "$release_sha256" <<'PY'
+        import json, sys
+        path, key, version, asset, sha256 = sys.argv[1:]
+        data = json.load(open(path, encoding='utf-8'))
+        expected = {'version': version, 'asset': asset, 'sha256': sha256}
+        if data.get(key) != expected:
+            raise SystemExit(f'{key} 写入 software_versions.json 后校验失败')
+        PY
+
+        for legacy_name in "$ASSET_NAME.sha256" "$SOFTWARE_KEY-LICENSE.txt" "$SOFTWARE_KEY-version.txt"; do
+          legacy_asset_id="$(gh api "repos/$GITHUB_REPOSITORY/releases/$release_id/assets?per_page=100" --paginate --jq ".[] | select(.name == \"$legacy_name\") | .id" | head -n 1)"
+          if [[ -n "$legacy_asset_id" ]]; then
+            gh api --method DELETE "repos/$GITHUB_REPOSITORY/releases/assets/$legacy_asset_id" >/dev/null
+          fi
+        done
+
+        echo "$SOFTWARE_KEY 已发布，并更新统一 software_versions.json。"

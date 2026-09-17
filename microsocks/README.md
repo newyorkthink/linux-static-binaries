@@ -7,7 +7,7 @@ MicroSocks 是一个轻量级多线程 SOCKS5 服务端。上游支持 IPv4、IP
 ## 当前版本
 
 ```text
-打包版本：1.0.5-r1
+打包版本：1.0.5-r2
 上游版本：1.0.5
 上游 Tag：v1.0.5
 上游 Commit：98421a21c4adc4c77c0cf3a5d650cc28ad3e0107
@@ -23,20 +23,25 @@ MicroSocks 是一个轻量级多线程 SOCKS5 服务端。上游支持 IPv4、IP
 2. 核对实际 Commit 与固定 Commit 完全一致。
 3. 使用 `musl-gcc` 和 `-static` 编译。
 4. 使用 `file` / `readelf` 静态检查最终 ELF，确认不存在 ELF interpreter 和动态 `NEEDED` 项。
-5. 生成 SHA-256 和版本文本后交给共享 GitHub Action 发布。
+5. 生成构建期 SHA-256 和版本文本；共享 GitHub Action 上传二进制后，将版本和 SHA-256 合并到统一 `software_versions.json`。
 
 MicroSocks 上游本身明确适合使用 musl 静态链接，因此这里不使用 AppImage、RunImage 或其他动态库打包层。
 
 ## Release 资产
 
+MicroSocks 自己只占一个二进制资产：
+
 ```text
 microsocks-x86_64-linux
-microsocks-x86_64-linux.sha256
-microsocks-LICENSE.txt
-microsocks-version.txt
 ```
 
-资产名保持稳定，具体版本由 `microsocks-version.txt` 和本目录版本记录确定。
+所有软件共用：
+
+```text
+software_versions.json
+```
+
+其中 `microsocks` 条目记录当前打包版本、固定资产名和最终二进制 SHA-256。构建目录中的 `dist/version.txt` 与 `*.sha256` 仅作为构建和发布过程的内部元数据，不再单独上传到 Release。
 
 ## 运行
 
@@ -52,4 +57,4 @@ microsocks-version.txt
 
 ## License
 
-MicroSocks 上游使用 MIT License。仓库保留上游 [`COPYING`](./COPYING)，Release 同时附带许可证文本。
+MicroSocks 上游使用 MIT License。仓库保留上游 [`COPYING`](./COPYING)；许可证正文不再重复拆成独立 Release 资产。
