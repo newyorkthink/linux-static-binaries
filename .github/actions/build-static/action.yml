@@ -1,0 +1,121 @@
+name: Build and Publish Static Binary
+description: Build one package, validate its static ELF output, and publish stable assets to the rolling latest Release.
+
+inputs:
+  software_key:
+    description: Stable software identifier used for release metadata file names.
+    required: true
+  build_script:
+    description: Repository-relative build script path.
+    required: true
+  artifact_path:
+    description: Repository-relative final binary path.
+    required: true
+  checksum_path:
+    description: Repository-relative SHA-256 file path.
+    required: true
+  version_file:
+    description: Repository-relative generated version file path.
+    required: true
+  license_file:
+    description: Repository-relative license file path.
+    required: true
+  asset_name:
+    description: Stable binary asset name in the latest Release.
+    required: true
+  github_token:
+    description: GitHub token used to create or update the rolling Release.
+    required: true
+
+runs:
+  using: composite
+  steps:
+    - name: Install static build toolchain
+      shell: bash
+      run: |
+        set -Eeuo pipefail
+        sudo apt-get update
+        sudo apt-get install -y --no-install-recommends \
+          binutils \
+          build-essential \
+          file \
+          git \
+          musl-tools
+
+    - name: Build static binary
+      shell: bash
+      env:
+        BUILD_SCRIPT: ${{ inputs.build_script }}
+      run: |
+        set -Eeuo pipefail
+        chmod +x "$BUILD_SCRIPT"
+        "$BUILD_SCRIPT"
+
+    - name: Validate release inputs
+      shell: bash
+      env:
+        ARTIFACT_PATH: ${{ inputs.artifact_path }}
+        CHECKSUM_PATH: ${{ inputs.checksum_path }}
+        VERSION_FILE: ${{ inputs.version_file }}
+        LICENSE_FILE: ${{ inputs.license_file }}
+        ASSET_NAME: ${{ inputs.asset_name }}
+      run: |
+        set -Eeuo pipefail
+
+        [[ -s "$ARTIFACT_PATH" ]] || { echo "产物不存在或为空：$ARTIFACT_PATH" >&2; exit 1; }
+        [[ -s "$CHECKSUM_PATH" ]] || { echo "SHA-256 文件不存在或为空：$CHECKSUM_PATH" >&2; exit 1; }
+        [[ -s "$VERSION_FILE" ]] || { echo "版本文件不存在或为空：$VERSION_FILE" >&2; exit 1; }
+        [[ -s "$LICENSE_FILE" ]] || { echo "许可证文件不存在或为空：$LICENSE_FILE" >&2; exit 1; }
+        [[ "$(basename "$ARTIFACT_PATH")" == "$ASSET_NAME" ]] || {
+          echo "产物文件名与固定 Release 资产名不一致：$(basename "$ARTIFACT_PATH") != $ASSET_NAME" >&2
+          exit 1
+        }
+
+        expected_sha256="$(awk 'NR == 1 {print tolower($1)}' "$CHECKSUM_PATH")"
+        actual_sha256="$(sha256sum "$ARTIFACT_PATH" | awk '{print tolower($1)}')"
+        [[ "$expected_sha256" == "$actual_sha256" ]] || {
+          echo 'SHA-256 文件与最终二进制不一致。' >&2
+          exit 1
+        }
+
+        version="$(tr -d '\r\n' < "$VERSION_FILE")"
+        [[ -n "$version" ]] || { echo '版本内容为空。' >&2; exit 1; }
+
+    - name: Publish rolling latest Release
+      shell: bash
+      env:
+        GH_TOKEN: ${{ inputs.github_token }}
+        SOFTWARE_KEY: ${{ inputs.software_key }}
+        ARTIFACT_PATH: ${{ inputs.artifact_path }}
+        CHECKSUM_PATH: ${{ inputs.checksum_path }}
+        VERSION_FILE: ${{ inputs.version_file }}
+        LICENSE_FILE: ${{ inputs.license_file }}
+        ASSET_NAME: ${{ inputs.asset_name }}
+      run: |
+        set -Eeuo pipefail
+
+        if ! gh release view latest --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
+          gh release create latest \
+            --repo "$GITHUB_REPOSITORY" \
+            --target "$GITHUB_SHA" \
+            --title 'Latest' \
+            --notes 'Rolling release of portable static Linux binaries.' \
+            --latest
+        fi
+
+        RELEASE_DIR="$RUNNER_TEMP/release-$SOFTWARE_KEY"
+        rm -rf "$RELEASE_DIR"
+        mkdir -p "$RELEASE_DIR"
+
+        cp "$ARTIFACT_PATH" "$RELEASE_DIR/$ASSET_NAME"
+        cp "$CHECKSUM_PATH" "$RELEASE_DIR/$ASSET_NAME.sha256"
+        cp "$LICENSE_FILE" "$RELEASE_DIR/$SOFTWARE_KEY-LICENSE.txt"
+        cp "$VERSION_FILE" "$RELEASE_DIR/$SOFTWARE_KEY-version.txt"
+
+        gh release upload latest \
+          "$RELEASE_DIR/$ASSET_NAME" \
+          "$RELEASE_DIR/$ASSET_NAME.sha256" \
+          "$RELEASE_DIR/$SOFTWARE_KEY-LICENSE.txt" \
+          "$RELEASE_DIR/$SOFTWARE_KEY-version.txt" \
+          --repo "$GITHUB_REPOSITORY" \
+          --clobber

@@ -1,0 +1,51 @@
+name: Build Static Binaries
+
+run-name: >-
+  ${{ github.event_name == 'workflow_dispatch' && format('Build {0}', inputs.target) || github.event.head_commit.message }}
+
+on:
+  workflow_dispatch:
+    inputs:
+      target:
+        description: '选择要构建的软件'
+        required: true
+        default: 'microsocks'
+        type: choice
+        options:
+          - microsocks
+  push:
+    branches: [main]
+    paths:
+      - 'microsocks/**'
+      - '!microsocks/**/*.md'
+      - '.github/actions/build-static/action.yml'
+      - '.github/workflows/build.yml'
+
+permissions:
+  contents: write
+
+concurrency:
+  group: static-binaries-release
+  cancel-in-progress: false
+
+jobs:
+  build-microsocks:
+    name: Build MicroSocks
+    if: ${{ github.event_name != 'workflow_dispatch' || inputs.target == 'microsocks' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Build and publish MicroSocks
+        uses: ./.github/actions/build-static
+        with:
+          software_key: microsocks
+          build_script: microsocks/build.sh
+          artifact_path: microsocks/dist/microsocks-x86_64-linux
+          checksum_path: microsocks/dist/microsocks-x86_64-linux.sha256
+          version_file: microsocks/dist/version.txt
+          license_file: microsocks/COPYING
+          asset_name: microsocks-x86_64-linux
+          github_token: ${{ github.token }}
