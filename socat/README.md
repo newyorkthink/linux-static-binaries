@@ -42,11 +42,13 @@ usr/share/man/man1/
 1. 动态解析官方当前最新稳定 Tag 及其 Commit。
 2. 在固定的 Alpine musl 构建环境中安装编译工具链，以及 OpenSSL、readline、ncurses 的开发文件和静态库。
 3. Checkout 本次动态 Tag，并核对实际 Commit 与本次动态解析值完全一致。
-4. Git Tag 源码树不包含生成后的 `configure`；按上游 `configure.ac` 的说明直接运行 `autoconf` 生成 `configure`，再使用 `-static` 构建 `socat`、`filan`、`procan`，同时保留 OpenSSL 和 readline 支持。
-5. 使用上游自己的 `make install DESTDIR=...` 生成标准安装树，不手工重建文件布局。
-6. 静态检查 `socat1`、`filan`、`procan`，确认均为 64-bit ELF，且不存在 ELF interpreter 和动态 `NEEDED` 项。
-7. 核对完整标准运行时安装集、符号链接和 man page 后，将整个 `usr/` 安装树归档为 `socat.tar.xz`。
-8. 生成构建期 SHA-256 和版本文本；共享 GitHub Action 上传归档后，将版本和 SHA-256 合并到统一 `software_versions.json`。
+4. Git Tag 源码树不包含生成后的 `configure`；按上游 `configure.ac` 的说明直接运行 `autoconf` 生成 `configure`。
+5. Git Tag 源码树也不包含发布归档中预生成的 `doc/socat.1`，而固定的 Alpine 3.22 main/community 不提供 `yodl2man`。构建因此按本次动态版本下载同版本的 socat 官方发布归档，核对归档 `VERSION`，并要求其中 `doc/socat.yo` 与已核对 Commit 的 Git 源码完全一致后，仅复制官方预生成的 `doc/socat.1`；程序源码仍来自已核对 Commit 的 Git Checkout。
+6. 使用 `-static` 构建 `socat`、`filan`、`procan`，同时保留 OpenSSL 和 readline 支持。
+7. 使用上游自己的 `make install DESTDIR=...` 生成标准安装树，不手工重建文件布局。
+8. 静态检查 `socat1`、`filan`、`procan`，确认均为 64-bit ELF，且不存在 ELF interpreter 和动态 `NEEDED` 项。
+9. 核对完整标准运行时安装集、符号链接和 man page 后，将整个 `usr/` 安装树归档为 `socat.tar.xz`。
+10. 生成构建期 SHA-256 和版本文本；共享 GitHub Action 上传归档后，将版本和 SHA-256 合并到统一 `software_versions.json`。
 
 这里没有为了静态构建而关闭 OpenSSL 或 readline；构建阶段会直接检查两项功能在 `config.h` 中处于启用状态。
 

@@ -45,6 +45,7 @@ mkdir -p "$DIST_DIR"
 
 docker run --rm \
     -e "SOCAT_TAG=$SOCAT_TAG" \
+    -e "SOCAT_VERSION=$SOCAT_VERSION" \
     -e "SOCAT_COMMIT=$SOCAT_COMMIT" \
     -e "PACKAGE_VERSION=$PACKAGE_VERSION" \
     -v "$REPO_ROOT:/workspace" \
@@ -54,6 +55,7 @@ docker run --rm \
             autoconf \
             automake \
             build-base \
+            curl \
             file \
             git \
             linux-headers \
@@ -68,9 +70,11 @@ docker run --rm \
             xz
 
         SOURCE_DIR=/tmp/socat-source
+        RELEASE_DIR=/tmp/socat-release
+        RELEASE_ARCHIVE=/tmp/socat-release.tar.gz
         STAGE_DIR=/tmp/socat-stage
 
-        rm -rf "$SOURCE_DIR" "$STAGE_DIR"
+        rm -rf "$SOURCE_DIR" "$RELEASE_DIR" "$RELEASE_ARCHIVE" "$STAGE_DIR"
         git clone --quiet --depth=1 --branch "$SOCAT_TAG" \
             https://repo.or.cz/socat.git \
             "$SOURCE_DIR"
@@ -80,6 +84,25 @@ docker run --rm \
             printf "上游 Commit 不匹配：动态解析 %s，实际 Checkout %s\n" "$SOCAT_COMMIT" "$ACTUAL_COMMIT" >&2
             exit 1
         fi
+
+        # Git Tag 源码树不包含发布归档中预生成的 man page；从同一动态版本的官方发布归档补齐。
+        curl -fL --retry 3 --connect-timeout 30 \
+            "http://www.dest-unreach.org/socat/download/socat-${SOCAT_VERSION}.tar.gz" \
+            -o "$RELEASE_ARCHIVE"
+        mkdir -p "$RELEASE_DIR"
+        tar -xzf "$RELEASE_ARCHIVE" -C "$RELEASE_DIR" --strip-components=1 \
+            "socat-${SOCAT_VERSION}/VERSION" \
+            "socat-${SOCAT_VERSION}/doc/socat.yo" \
+            "socat-${SOCAT_VERSION}/doc/socat.1"
+
+        RELEASE_VERSION="$(tr -d "\r\n" < "$RELEASE_DIR/VERSION")"
+        if [ "$RELEASE_VERSION" != "$SOCAT_VERSION" ]; then
+            printf "官方发布归档版本不匹配：期望 %s，实际 %s\n" "$SOCAT_VERSION" "$RELEASE_VERSION" >&2
+            exit 1
+        fi
+        cmp "$SOURCE_DIR/doc/socat.yo" "$RELEASE_DIR/doc/socat.yo"
+        [ -s "$RELEASE_DIR/doc/socat.1" ]
+        install -Dm644 "$RELEASE_DIR/doc/socat.1" "$SOURCE_DIR/doc/socat.1"
 
         cd "$SOURCE_DIR"
         autoconf
