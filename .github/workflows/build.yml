@@ -12,6 +12,7 @@ on:
         default: 'microsocks'
         type: choice
         options:
+          - lshw
           - microsocks
       release_integrity_repair:
         description: '内部使用：由 Release 完整性监督触发'
@@ -21,6 +22,8 @@ on:
   push:
     branches: [main]
     paths:
+      - 'lshw/**'
+      - '!lshw/**/*.md'
       - 'microsocks/**'
       - '!microsocks/**/*.md'
       - '.github/actions/build-static/action.yml'
@@ -34,6 +37,34 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
+  build-lshw:
+    name: Build lshw
+    if: ${{ github.event_name != 'workflow_dispatch' || inputs.target == 'lshw' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install lshw build dependencies
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends gettext
+
+      - name: Build and publish lshw
+        uses: ./.github/actions/build-static
+        with:
+          software_key: lshw
+          build_script: lshw/build.sh
+          artifact_path: lshw/dist/lshw.tar.xz
+          checksum_path: lshw/dist/lshw.tar.xz.sha256
+          version_file: lshw/dist/version.txt
+          license_file: lshw/COPYING
+          asset_name: lshw.tar.xz
+          github_token: ${{ github.token }}
+
   build-microsocks:
     name: Build MicroSocks
     if: ${{ github.event_name != 'workflow_dispatch' || inputs.target == 'microsocks' }}
