@@ -17,6 +17,17 @@ AI 永久禁止在本仓库新增、生成、补写、插入、恢复或迁移�
 
 不得加入“启动程序几秒后看退出码”“连接代理端口确认可用”等运行时冒烟测试，也不得为了验证构建临时创建测试 Workflow。
 
+## 永久规则：禁止创建任何 Git 分支（不可豁免）
+
+AI 永久禁止在本仓库创建任何 Git 分支。所有提交、推送和必要的历史重写只允许发生在远端已经存在的分支上，默认使用 `main`。
+
+强制要求：
+
+- 禁止 `git checkout -b`、`git switch -c`、`git branch <新名字>`、`git push origin HEAD:<新分支>`、`git worktree add -b` 以及任何等价的新建分支操作。
+- 禁止通过 GitHub、`gh`、API 或网页为测试、PR、备份、并行任务、临时验证或回滚创建新分支。
+- 禁止恢复或重建已经删除的分支名。
+- 用户要求直接修改仓库时，完整检查后直接提交到现有 `main`；不得先建测试分支再合并。
+
 ## 永久规则：禁止锁定目标软件版本（不可豁免）
 
 AI 永久禁止把本仓库“目标应用本身”的 Version、Tag 或 Commit SHA 作为长期固定值写入仓库。此规则适用于当前和今后加入的所有目标软件，不得只对某一个软件例外处理。
@@ -38,6 +49,18 @@ AI 永久禁止把本仓库“目标应用本身”的 Version、Tag 或 Commit 
 AI 永久禁止在本仓库使用 `git revert`、GitHub 网页 Revert 操作，或创建专门抵消其他提交的反向 Commit。
 
 如果用户要求删除、撤销或整个取消某个提交，必须先检查目标提交、父提交和后续提交关系，再通过最小范围的历史重写让目标提交不再属于 `main`；不得用新增反向 Commit 代替。
+
+## 永久规则：本仓库必须独立运行（不可豁免）
+
+本仓库中的代码、脚本、GitHub Actions、配置、构建、发布、检查、监督与自愈机制，只允许依赖本仓库自身内容、当前仓库的 GitHub 资源以及目标软件的官方上游资源；不得与其他代码仓库建立运行时依赖或耦合。
+
+强制要求：
+
+- 禁止为了构建、发布、检查、监督或自愈去读取、调用、触发、修改、写入、同步或依赖其他代码仓库的 Workflow、Artifact、Release、文件、状态或元数据。
+- 禁止跨仓库 `repository_dispatch`、跨仓库 `workflow_call`、跨仓库 Artifact / Release 或其他等价运行时耦合。
+- 目标软件的官方 GitHub / GitLab、官方网站、官方软件包仓库、官方 Release / API 属于正常供应链来源，不视为跨仓库耦合。
+- 一次性迁移任务可以读取用户指定的源仓库作为静态参考；迁移完成后的正式代码和 Workflow 不得保留对源仓库的运行时依赖。
+- 监督与自愈只能检查和处理本仓库自身的 Workflow、Job、Release、Release Assets、`software_versions.json` 和构建结果。
 
 ## 永久规则：每个 Build 成功后立即更新统一版本清单（不可豁免）
 
@@ -167,6 +190,19 @@ AI 永久禁止在本仓库使用 `git revert`、GitHub 网页 Revert 操作，�
 - 可以复用的安装、产物检查、Release 上传和统一版本清单更新逻辑放在共享 composite Action 中。
 - 文档修改不得无意义触发二进制重建。
 - Public 仓库可以正常使用 GitHub-hosted runner 完成必要构建，不得为了节省 Actions 分钟省略正确性所需步骤；但必须避免明显重复或错误触发。
+
+Release 完整性监督固定使用：
+
+```text
+.github/workflows/supervise-release-integrity.yml
+.github/scripts/supervise_release_integrity.py
+```
+
+- 监督 Workflow 只检查本仓库 `latest` Release 中 `software_versions.json` 与 Release Asset SHA-256 digest 的一致性，不写版本清单，也不充当中央 publisher。
+- 发现单个可安全映射的异常时，只允许通过本仓库 `build.yml` 的 `workflow_dispatch` 重新构建对应软件一次；修复构建完成后再次监督，仍异常则失败并停止，禁止无限循环。
+- 自动映射要求 `software_key`、软件目录名和 `workflow_dispatch.target` 保持一致；不能唯一、安全映射时必须停止，不得扩大为全量重建。
+- 手动触发的构建首次失败时，监督可以只重新运行失败 Job 一次；第二次仍失败不得继续循环。Push 触发的构建失败不自动重跑。
+- 监督 Workflow 属于发布完整性维护，不得加入程序启动、端口连接或其他运行时冒烟测试。
 
 ## 9. Release 规则
 

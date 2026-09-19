@@ -109,9 +109,20 @@ runs:
             --latest
         fi
 
-        gh release upload latest "$ARTIFACT_PATH" \
-          --repo "$GITHUB_REPOSITORY" \
-          --clobber
+        uploaded=false
+        for attempt in $(seq 1 8); do
+          if timeout 180 gh release upload latest "$ARTIFACT_PATH" \
+            --repo "$GITHUB_REPOSITORY" \
+            --clobber; then
+            uploaded=true
+            break
+          fi
+          if [[ "$attempt" -eq 8 ]]; then
+            echo "$ASSET_NAME 上传 latest Release 失败，已重试 8 次。" >&2
+            exit 1
+          fi
+          sleep $((attempt * 2))
+        done
 
         version="$(tr -d '\r\n' < "$VERSION_FILE")"
         local_sha256="$(sha256sum "$ARTIFACT_PATH" | awk '{print tolower($1)}')"
@@ -143,58 +154,108 @@ runs:
           exit 1
         }
 
+        manifest_name='software_versions.json'
+        workdir="$RUNNER_TEMP/software-versions-$SOFTWARE_KEY"
+        manifest="$workdir/$manifest_name"
+        verified_manifest="$workdir/verified-$manifest_name"
         lock_name='software_versions.json.lock'
-        lock_file="$RUNNER_TEMP/$lock_name"
-        lock_asset_id=''
-        lock_owned=false
-        staged_asset_id=''
-        staged_promoted=false
+        lock_file="$workdir/$lock_name"
+        lock_upload_error="$workdir/lock-upload-error.txt"
+        rm -rf "$workdir"
+        mkdir -p "$workdir"
         printf '%s\n' "run=$GITHUB_RUN_ID job=$GITHUB_JOB attempt=$GITHUB_RUN_ATTEMPT" > "$lock_file"
 
-        cleanup() {
-          if [[ "$staged_promoted" != true && -n "$staged_asset_id" ]]; then
-            gh api --method DELETE "repos/$GITHUB_REPOSITORY/releases/assets/$staged_asset_id" >/dev/null 2>&1 || true
-          fi
+        release_id="$(python3 - "$release_json" <<'PY'
+        import json, sys
+        release_id = json.load(open(sys.argv[1], encoding='utf-8')).get('id')
+        if not release_id:
+            raise SystemExit('无法取得 latest Release ID')
+        print(release_id)
+        PY
+        )"
+
+        lock_asset_id=''
+        lock_owned=false
+        cleanup_lock() {
           if [[ "$lock_owned" == true && -n "$lock_asset_id" ]]; then
             gh api --method DELETE "repos/$GITHUB_REPOSITORY/releases/assets/$lock_asset_id" >/dev/null 2>&1 || true
           fi
         }
-        trap cleanup EXIT
+        trap cleanup_lock EXIT
 
         acquired=false
         for attempt in $(seq 1 180); do
-          if gh release upload latest "$lock_file" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
-            lock_asset_id="$(gh api "repos/$GITHUB_REPOSITORY/releases/tags/latest" --jq ".assets[] | select(.name == \"$lock_name\") | .id" | head -n 1)"
-            [[ -n "$lock_asset_id" ]] || { echo '已取得版本清单锁，但无法读取锁资产 ID。' >&2; exit 1; }
+          : > "$lock_upload_error"
+          if gh release upload latest "$lock_file" --repo "$GITHUB_REPOSITORY" \
+            >/dev/null 2>"$lock_upload_error"; then
+            lock_asset_id=''
+            for visibility_attempt in $(seq 1 15); do
+              mapfile -t lock_ids < <(
+                gh api "repos/$GITHUB_REPOSITORY/releases/$release_id/assets?per_page=100" --paginate \
+                  --jq ".[] | select(.name == \"$lock_name\") | .id"
+              )
+              if (( ${#lock_ids[@]} == 1 )); then
+                lock_asset_id="${lock_ids[0]}"
+                break
+              fi
+              if (( ${#lock_ids[@]} > 1 )); then
+                echo "latest Release 中存在多个 $lock_name，禁止继续写入清单。" >&2
+                exit 1
+              fi
+              sleep 1
+            done
+            [[ -n "$lock_asset_id" ]] || {
+              echo '已取得 software_versions.json 写锁，但无法读取锁资产 ID。' >&2
+              exit 1
+            }
             lock_owned=true
             acquired=true
             break
           fi
 
-          lock_row="$(gh api "repos/$GITHUB_REPOSITORY/releases/tags/latest" --jq ".assets[] | select(.name == \"$lock_name\") | [.id,.created_at] | @tsv" | head -n 1 || true)"
-          if [[ -n "$lock_row" ]]; then
-            lock_id="${lock_row%%$'\t'*}"
-            created_at="${lock_row#*$'\t'}"
-            created_epoch="$(date -u -d "$created_at" +%s 2>/dev/null || echo 0)"
-            now_epoch="$(date -u +%s)"
-            if (( created_epoch > 0 && now_epoch - created_epoch > 600 )); then
-              gh api --method DELETE "repos/$GITHUB_REPOSITORY/releases/assets/$lock_id" >/dev/null 2>&1 || true
-            fi
+          mapfile -t lock_rows < <(
+            gh api "repos/$GITHUB_REPOSITORY/releases/$release_id/assets?per_page=100" --paginate \
+              --jq ".[] | select(.name == \"$lock_name\") | [.id,.created_at] | @tsv" \
+              || true
+          )
+          if (( ${#lock_rows[@]} > 1 )); then
+            echo "latest Release 中存在多个 $lock_name，禁止继续写入清单。" >&2
+            exit 1
+          fi
+          if (( ${#lock_rows[@]} == 0 )); then
+            sleep 2
+            continue
+          fi
+          lock_row="${lock_rows[0]}"
+          lock_id="${lock_row%%$'\t'*}"
+          created_at="${lock_row#*$'\t'}"
+          created_epoch="$(date -u -d "$created_at" +%s 2>/dev/null || echo 0)"
+          now_epoch="$(date -u +%s)"
+          if (( created_epoch > 0 && now_epoch - created_epoch > 300 )); then
+            gh api --method DELETE "repos/$GITHUB_REPOSITORY/releases/assets/$lock_id" >/dev/null 2>&1 || true
           fi
           sleep 2
         done
-        [[ "$acquired" == true ]] || { echo '等待 software_versions.json 写锁超时。' >&2; exit 1; }
+        [[ "$acquired" == true ]] || {
+          echo '短暂等待 software_versions.json 写锁超时。' >&2
+          exit 1
+        }
 
-        workdir="$RUNNER_TEMP/software-versions-$SOFTWARE_KEY"
-        manifest="$workdir/software_versions.json"
-        verify_dir="$workdir/verify"
-        rm -rf "$workdir"
-        mkdir -p "$workdir" "$verify_dir"
-
-        if gh release view latest --repo "$GITHUB_REPOSITORY" --json assets --jq '.assets[].name' | grep -Fxq 'software_versions.json'; then
-          gh release download latest --repo "$GITHUB_REPOSITORY" --pattern 'software_versions.json' --dir "$workdir" --clobber
-        else
+        mapfile -t manifest_rows < <(
+          gh api "repos/$GITHUB_REPOSITORY/releases/$release_id/assets?per_page=100" --paginate \
+            --jq ".[] | select(.name == \"$manifest_name\") | [.id, (.digest // \"\")] | @tsv"
+        )
+        if (( ${#manifest_rows[@]} == 0 )); then
           printf '{}\n' > "$manifest"
+        elif (( ${#manifest_rows[@]} == 1 )); then
+          manifest_asset_id="${manifest_rows[0]%%$'\t'*}"
+          gh api \
+            -H 'Accept: application/octet-stream' \
+            "repos/$GITHUB_REPOSITORY/releases/assets/$manifest_asset_id" \
+            > "$manifest"
+        else
+          echo "latest Release 中存在多个 $manifest_name，禁止覆盖。" >&2
+          exit 1
         fi
 
         python3 - "$manifest" "$SOFTWARE_KEY" "$version" "$ASSET_NAME" "$release_sha256" <<'PY'
@@ -210,57 +271,60 @@ runs:
             f.write('\n')
         PY
 
-        nonce="${GITHUB_RUN_ID}-${GITHUB_JOB}-${GITHUB_RUN_ATTEMPT}-$(date -u +%s)-$RANDOM"
-        staged_name="software_versions.json.pending.$nonce"
-        staged_path="$workdir/$staged_name"
-        cp "$manifest" "$staged_path"
-        staged_sha256="$(sha256sum "$staged_path" | awk '{print tolower($1)}')"
-
-        gh release upload latest "$staged_path" --repo "$GITHUB_REPOSITORY"
-        staged_asset_id="$(gh api "repos/$GITHUB_REPOSITORY/releases/tags/latest" --jq ".assets[] | select(.name == \"$staged_name\") | .id" | head -n 1)"
-        [[ -n "$staged_asset_id" ]] || { echo '临时版本清单已上传，但无法读取资产 ID。' >&2; exit 1; }
-
-        staged_verify_dir="$workdir/staged-verify"
-        mkdir -p "$staged_verify_dir"
-        gh release download latest --repo "$GITHUB_REPOSITORY" --pattern "$staged_name" --dir "$staged_verify_dir" --clobber
-        downloaded_staged_sha256="$(sha256sum "$staged_verify_dir/$staged_name" | awk '{print tolower($1)}')"
-        [[ "$downloaded_staged_sha256" == "$staged_sha256" ]] || {
-          echo '临时版本清单上传后 SHA-256 校验失败，保留旧正式清单。' >&2
+        manifest_sha256="$(sha256sum "$manifest" | awk '{print tolower($1)}')"
+        manifest_uploaded=false
+        for attempt in $(seq 1 8); do
+          if timeout 120 gh release upload latest "$manifest" --repo "$GITHUB_REPOSITORY" --clobber; then
+            manifest_uploaded=true
+            break
+          fi
+          sleep $((attempt * 2))
+        done
+        [[ "$manifest_uploaded" == true ]] || {
+          echo "上传 $manifest_name 失败。" >&2
           exit 1
         }
 
-        release_id="$(gh api "repos/$GITHUB_REPOSITORY/releases/tags/latest" --jq '.id')"
-        current_asset_id="$(gh api "repos/$GITHUB_REPOSITORY/releases/$release_id/assets?per_page=100" --paginate --jq '.[] | select(.name == "software_versions.json") | .id' | head -n 1)"
-        backup_asset_id=''
-
-        if [[ -n "$current_asset_id" ]]; then
-          backup_name="software_versions.json.previous.$nonce"
-          gh api --method PATCH "repos/$GITHUB_REPOSITORY/releases/assets/$current_asset_id" -f name="$backup_name" >/dev/null
-          backup_asset_id="$current_asset_id"
-        fi
-
-        if ! gh api --method PATCH "repos/$GITHUB_REPOSITORY/releases/assets/$staged_asset_id" -f name='software_versions.json' >/dev/null; then
-          if [[ -n "$backup_asset_id" ]]; then
-            gh api --method PATCH "repos/$GITHUB_REPOSITORY/releases/assets/$backup_asset_id" -f name='software_versions.json' >/dev/null 2>&1 || true
-          fi
-          echo '切换正式版本清单名称失败；已尝试恢复上一份正式清单。' >&2
-          exit 1
-        fi
-        staged_promoted=true
-
-        if [[ -n "$backup_asset_id" ]]; then
-          gh api --method DELETE "repos/$GITHUB_REPOSITORY/releases/assets/$backup_asset_id" >/dev/null
-        fi
-
-        gh release download latest --repo "$GITHUB_REPOSITORY" --pattern 'software_versions.json' --dir "$verify_dir" --clobber
-        python3 - "$verify_dir/software_versions.json" "$SOFTWARE_KEY" "$version" "$ASSET_NAME" "$release_sha256" <<'PY'
+        verified=false
+        for attempt in $(seq 1 12); do
+          mapfile -t manifest_rows < <(
+            gh api "repos/$GITHUB_REPOSITORY/releases/$release_id/assets?per_page=100" --paginate \
+              --jq ".[] | select(.name == \"$manifest_name\") | [.id, (.digest // \"\")] | @tsv"
+          )
+          if (( ${#manifest_rows[@]} == 1 )); then
+            manifest_asset_id="${manifest_rows[0]%%$'\t'*}"
+            manifest_digest="${manifest_rows[0]#*$'\t'}"
+            if [[ "$manifest_digest" == "sha256:$manifest_sha256" ]]; then
+              rm -f "$verified_manifest"
+              if gh api \
+                -H 'Accept: application/octet-stream' \
+                "repos/$GITHUB_REPOSITORY/releases/assets/$manifest_asset_id" \
+                > "$verified_manifest"; then
+                if [[ "$(sha256sum "$verified_manifest" | awk '{print tolower($1)}')" == "$manifest_sha256" ]] && \
+                  python3 - "$verified_manifest" "$SOFTWARE_KEY" "$version" "$ASSET_NAME" "$release_sha256" <<'PY'
         import json, sys
         path, key, version, asset, sha256 = sys.argv[1:]
         data = json.load(open(path, encoding='utf-8'))
         expected = {'version': version, 'asset': asset, 'sha256': sha256}
-        if data.get(key) != expected:
-            raise SystemExit(f'{key} 写入 software_versions.json 后校验失败')
+        raise SystemExit(0 if data.get(key) == expected else 1)
         PY
+                then
+                  verified=true
+                  break
+                fi
+              fi
+            fi
+          fi
+          sleep 2
+        done
+        [[ "$verified" == true ]] || {
+          echo "$SOFTWARE_KEY 写入 latest Release/$manifest_name 后校验失败。" >&2
+          exit 1
+        }
+
+        gh api --method DELETE "repos/$GITHUB_REPOSITORY/releases/assets/$lock_asset_id" >/dev/null
+        lock_owned=false
+        trap - EXIT
 
         for generated_legacy_name in "$ASSET_NAME.sha256" "$SOFTWARE_KEY-LICENSE.txt" "$SOFTWARE_KEY-version.txt"; do
           generated_legacy_asset_id="$(gh api "repos/$GITHUB_REPOSITORY/releases/$release_id/assets?per_page=100" --paginate --jq ".[] | select(.name == \"$generated_legacy_name\") | .id" | head -n 1)"

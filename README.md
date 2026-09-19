@@ -22,8 +22,10 @@
 
 ```text
 .github/
-  actions/build-static/   共享静态构建、发布和版本清单更新 Action
-  workflows/build.yml     正式构建 Workflow
+  actions/build-static/                 共享静态构建、发布和版本清单更新 Action
+  scripts/supervise_release_integrity.py Release 完整性检查逻辑
+  workflows/build.yml                   正式构建 Workflow
+  workflows/supervise-release-integrity.yml  Release 完整性监督与单次自愈
 <software>/
   build.sh                软件构建脚本；动态解析最新稳定上游版本
   version.conf            仅保存打包修订号或必要的构建环境 / 依赖固定值，不得锁目标应用版本
@@ -55,6 +57,16 @@ software_versions.json
   }
 }
 ```
+
+版本清单写入采用短期互斥锁：每个 Build 先独立完成构建、Release 资产上传及资产 digest 校验，取得锁后通过唯一 Release Asset ID 读取当前 `software_versions.json`，只合并自己的条目，再以固定资产名覆盖上传并重新按唯一 Asset ID 校验 digest、下载内容和当前条目。锁只覆盖版本清单读改写临界区，不串行软件构建。
+
+### Release 完整性监督与单次自愈
+
+`.github/workflows/supervise-release-integrity.yml` 会在实际运行过软件构建的 **Build Static Binaries** 完成后检查 `latest` Release。监督读取唯一的 `software_versions.json`，逐项比较清单中的 `sha256` 与对应 Release Asset 的 GitHub SHA-256 digest。
+
+全部一致时不修改 Release，也不触发构建。发现单个异常且 `software_key` 能安全映射到同名软件目录和 `workflow_dispatch.target` 时，只通过本仓库正式 `build.yml` 触发一次对应软件自愈构建；自愈完成后再次监督，仍异常则停止并报错，不继续循环。监督 Workflow 本身不写版本清单。
+
+手动触发的 Build 首次失败时，监督只重新运行失败 Job 一次；Push 触发的失败不自动重跑。
 
 因此仓库增加软件时，不需要在根 README 继续追加软件表格、版本号、命令或 Release 资产列表。
 

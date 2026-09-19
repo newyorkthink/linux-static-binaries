@@ -1,0 +1,179 @@
+# Build Static Binaries 完成后执行监督：手动构建首次失败时只重跑失败 Job 一次，并检查 latest Release 完整性。
+name: Supervise Release Integrity
+run-name: >-
+  ${{ github.event.workflow_run.event == 'workflow_dispatch' && startsWith(github.event.workflow_run.display_title, 'Release integrity repair:') && format('Verify repair for Build Static Binaries #{0}', github.event.workflow_run.run_number) || format('Supervise Build Static Binaries #{0}', github.event.workflow_run.run_number) }}
+
+on:
+  workflow_run:
+    workflows: [Build Static Binaries]
+    types: [completed]
+
+permissions:
+  contents: read
+  actions: write
+
+jobs:
+  supervise:
+    name: Supervise latest Release integrity
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    env:
+      SOURCE_RUN_ID: ${{ github.event.workflow_run.id }}
+      IS_REPAIR_RUN: ${{ github.event.workflow_run.event == 'workflow_dispatch' && startsWith(github.event.workflow_run.display_title, 'Release integrity repair:') }}
+
+    steps:
+      - name: Rerun failed jobs once for the first failed manual build
+        id: retry
+        if: >-
+          github.event.workflow_run.event == 'workflow_dispatch' &&
+          github.event.workflow_run.conclusion == 'failure' &&
+          github.event.workflow_run.run_attempt == 1
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -Eeuo pipefail
+          gh api --method POST \
+            "repos/$GITHUB_REPOSITORY/actions/runs/$SOURCE_RUN_ID/rerun-failed-jobs"
+          echo 'retry_started=true' >> "$GITHUB_OUTPUT"
+          echo '首次手动构建存在失败 Job，已仅重新运行失败 Job 一次。'
+
+      - name: Determine whether the completed workflow built a package
+        if: steps.retry.outputs.retry_started != 'true'
+        id: source
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -Eeuo pipefail
+          jobs_json="$RUNNER_TEMP/source-run-jobs.json"
+          gh api --paginate --slurp \
+            "repos/$GITHUB_REPOSITORY/actions/runs/$SOURCE_RUN_ID/jobs?per_page=100" \
+            > "$jobs_json"
+          should_supervise="$(python3 - "$jobs_json" <<'PY'
+          import json, sys
+          pages = json.load(open(sys.argv[1], encoding='utf-8'))
+          jobs = [job for page in pages for job in page.get('jobs', [])]
+          built = any(
+              isinstance(job.get('name'), str)
+              and job['name'].startswith('Build ')
+              and job.get('conclusion') != 'skipped'
+              for job in jobs
+          )
+          print('true' if built else 'false')
+          PY
+          )"
+          echo "should_supervise=$should_supervise" >> "$GITHUB_OUTPUT"
+          if [[ "$should_supervise" != true ]]; then
+            echo '当前 Build Static Binaries 没有实际运行软件构建，不监督 Release。'
+          fi
+
+      - name: Checkout repository
+        if: steps.source.outputs.should_supervise == 'true'
+        uses: actions/checkout@v4
+
+      - name: Read latest Release state
+        if: steps.source.outputs.should_supervise == 'true'
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -Eeuo pipefail
+          release_json="$RUNNER_TEMP/latest-release.json"
+          assets_json="$RUNNER_TEMP/latest-release-assets.json"
+          manifest="$RUNNER_TEMP/software_versions.json"
+
+          gh api "repos/$GITHUB_REPOSITORY/releases/tags/latest" > "$release_json"
+          release_id="$(python3 - "$release_json" <<'PY'
+          import json, sys
+          release_id = json.load(open(sys.argv[1], encoding='utf-8')).get('id')
+          if not release_id:
+              raise SystemExit('无法取得 latest Release ID。')
+          print(release_id)
+          PY
+          )"
+
+          gh api --paginate --slurp \
+            "repos/$GITHUB_REPOSITORY/releases/$release_id/assets?per_page=100" \
+            > "$assets_json"
+          manifest_asset_id="$(python3 - "$assets_json" <<'PY'
+          import json, sys
+          pages = json.load(open(sys.argv[1], encoding='utf-8'))
+          rows = [asset for page in pages for asset in page if asset.get('name') == 'software_versions.json']
+          if len(rows) != 1:
+              raise SystemExit(f'latest Release 中 software_versions.json 数量为 {len(rows)}，必须恰好为 1。')
+          print(rows[0]['id'])
+          PY
+          )"
+          gh api \
+            -H 'Accept: application/octet-stream' \
+            "repos/$GITHUB_REPOSITORY/releases/assets/$manifest_asset_id" \
+            > "$manifest"
+
+      - name: Supervise software version manifest
+        if: steps.source.outputs.should_supervise == 'true'
+        id: integrity
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          python3 .github/scripts/supervise_release_integrity.py \
+            --manifest "$RUNNER_TEMP/software_versions.json" \
+            --assets "$RUNNER_TEMP/latest-release-assets.json"
+
+      - name: Start one repair build for a single safely mapped mismatch
+        if: >-
+          steps.source.outputs.should_supervise == 'true' &&
+          steps.integrity.outputs.has_mismatches == 'true' &&
+          steps.integrity.outputs.mismatch_count == '1' &&
+          env.IS_REPAIR_RUN != 'true'
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          MISMATCH_KEYS: ${{ steps.integrity.outputs.mismatch_keys }}
+        run: |
+          set -Eeuo pipefail
+          repair_key="$(python3 - "$MISMATCH_KEYS" <<'PY'
+          import json, re, sys
+          keys = json.loads(sys.argv[1])
+          if len(keys) != 1 or not isinstance(keys[0], str) or not re.fullmatch(r'[A-Za-z0-9._-]+', keys[0]):
+              raise SystemExit('异常 software_key 无法安全映射。')
+          print(keys[0])
+          PY
+          )"
+
+          [[ -f "$repair_key/build.sh" ]] || {
+            echo "无法安全自愈：不存在 $repair_key/build.sh。" >&2
+            exit 1
+          }
+          grep -Fxq "          - $repair_key" .github/workflows/build.yml || {
+            echo "无法安全自愈：workflow_dispatch.target 中不存在唯一目标 $repair_key。" >&2
+            exit 1
+          }
+
+          gh api --method POST \
+            "repos/$GITHUB_REPOSITORY/actions/workflows/build.yml/dispatches" \
+            -f ref=main \
+            -f "inputs[target]=$repair_key" \
+            -F 'inputs[release_integrity_repair]=true'
+          echo "已触发一次完整性自愈，仅重新构建：$repair_key"
+
+      - name: Fail when mismatches cannot be repaired safely in one build
+        if: >-
+          steps.source.outputs.should_supervise == 'true' &&
+          steps.integrity.outputs.has_mismatches == 'true' &&
+          steps.integrity.outputs.mismatch_count != '1' &&
+          env.IS_REPAIR_RUN != 'true'
+        shell: bash
+        run: |
+          echo 'Release 完整性存在多个或无效异常，禁止自动扩大重建范围。' >&2
+          exit 1
+
+      - name: Fail after the only repair attempt
+        if: >-
+          steps.source.outputs.should_supervise == 'true' &&
+          steps.integrity.outputs.has_mismatches == 'true' &&
+          env.IS_REPAIR_RUN == 'true'
+        shell: bash
+        run: |
+          echo '自动修复一次后 Release 完整性仍然异常，禁止继续循环重跑。' >&2
+          exit 1

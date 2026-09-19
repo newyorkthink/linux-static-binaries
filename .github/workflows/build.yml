@@ -1,7 +1,7 @@
 name: Build Static Binaries
 
 run-name: >-
-  ${{ github.event_name == 'workflow_dispatch' && format('Build {0}', inputs.target) || github.event.head_commit.message }}
+  ${{ github.event_name == 'workflow_dispatch' && inputs.release_integrity_repair == true && format('Release integrity repair: {0}', inputs.target) || github.event_name == 'workflow_dispatch' && format('Build {0}', inputs.target) || github.event.head_commit.message }}
 
 on:
   workflow_dispatch:
@@ -13,6 +13,11 @@ on:
         type: choice
         options:
           - microsocks
+      release_integrity_repair:
+        description: '内部使用：由 Release 完整性监督触发'
+        required: false
+        default: false
+        type: boolean
   push:
     branches: [main]
     paths:
