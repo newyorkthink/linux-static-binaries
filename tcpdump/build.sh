@@ -96,7 +96,7 @@ cp -aL /usr/include/linux "$LINUX_UAPI_DIR/"
 cp -aL /usr/include/asm-generic "$LINUX_UAPI_DIR/"
 cp -aL "$LINUX_UAPI_ARCH_DIR" "$LINUX_UAPI_DIR/asm"
 
-MUSL_CPPFLAGS="-isystem $LINUX_UAPI_DIR"
+MUSL_CFLAGS="-O2 -isystem $LINUX_UAPI_DIR"
 
 git clone --quiet --depth=1 --branch "$LIBPCAP_TAG" "$LIBPCAP_URL" "$LIBPCAP_DIR"
 git clone --quiet --depth=1 --branch "$TCPDUMP_TAG" "$TCPDUMP_URL" "$TCPDUMP_DIR"
@@ -116,7 +116,7 @@ ACTUAL_TCPDUMP_COMMIT="$(git -C "$TCPDUMP_DIR" rev-parse HEAD)"
 (
     cd "$LIBPCAP_DIR"
     ./autogen.sh
-    CC=musl-gcc CPPFLAGS="$MUSL_CPPFLAGS" ./configure \
+    CC=musl-gcc CFLAGS="$MUSL_CFLAGS" ./configure \
         --disable-shared \
         --without-libnl \
         --disable-dbus \
@@ -127,7 +127,7 @@ ACTUAL_TCPDUMP_COMMIT="$(git -C "$TCPDUMP_DIR" rev-parse HEAD)"
 (
     cd "$TCPDUMP_DIR"
     ./autogen.sh
-    CC=musl-gcc CPPFLAGS="$MUSL_CPPFLAGS" LDFLAGS='-static' ./configure \
+    CC=musl-gcc CFLAGS="$MUSL_CFLAGS" LDFLAGS='-static' ./configure \
         --without-smi \
         --without-crypto \
         --without-cap-ng
