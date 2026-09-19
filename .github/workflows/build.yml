@@ -13,14 +13,11 @@ on:
         type: choice
         options:
           - microsocks
-          - socat
   push:
     branches: [main]
     paths:
       - 'microsocks/**'
       - '!microsocks/**/*.md'
-      - 'socat/**'
-      - '!socat/**/*.md'
       - '.github/actions/build-static/action.yml'
       - '.github/workflows/build.yml'
 
@@ -53,25 +50,4 @@ jobs:
           asset_name: microsocks
           legacy_asset_names: |
             microsocks-x86_64-linux
-          github_token: ${{ github.token }}
-
-  build-socat:
-    name: Build socat
-    if: ${{ github.event_name != 'workflow_dispatch' || inputs.target == 'socat' }}
-    runs-on: ubuntu-latest
-    timeout-minutes: 20
-
-    steps:
-      - uses: actions/checkout@v4
-
-      - name: Build and publish socat
-        uses: ./.github/actions/build-static
-        with:
-          software_key: socat
-          build_script: socat/build.sh
-          artifact_path: socat/dist/socat.tar.xz
-          checksum_path: socat/dist/socat.tar.xz.sha256
-          version_file: socat/dist/version.txt
-          license_file: socat/README.md
-          asset_name: socat.tar.xz
           github_token: ${{ github.token }}
