@@ -80,6 +80,24 @@ LIBPCAP_DIR="$WORK_DIR/libpcap"
 rm -rf "$WORK_DIR" "$DIST_DIR"
 mkdir -p "$WORK_DIR" "$DIST_DIR"
 
+MULTIARCH="$(dpkg-architecture -qDEB_HOST_MULTIARCH)"
+LINUX_UAPI_DIR="$WORK_DIR/linux-uapi"
+LINUX_UAPI_ARCH_DIR="/usr/include/$MULTIARCH/asm"
+
+for required_dir in /usr/include/linux /usr/include/asm-generic "$LINUX_UAPI_ARCH_DIR"; do
+    [[ -d "$required_dir" ]] || {
+        echo "缺少 Linux UAPI 头目录：$required_dir" >&2
+        exit 1
+    }
+done
+
+mkdir -p "$LINUX_UAPI_DIR"
+cp -aL /usr/include/linux "$LINUX_UAPI_DIR/"
+cp -aL /usr/include/asm-generic "$LINUX_UAPI_DIR/"
+cp -aL "$LINUX_UAPI_ARCH_DIR" "$LINUX_UAPI_DIR/asm"
+
+MUSL_CPPFLAGS="-isystem $LINUX_UAPI_DIR"
+
 git clone --quiet --depth=1 --branch "$LIBPCAP_TAG" "$LIBPCAP_URL" "$LIBPCAP_DIR"
 git clone --quiet --depth=1 --branch "$TCPDUMP_TAG" "$TCPDUMP_URL" "$TCPDUMP_DIR"
 
@@ -98,7 +116,7 @@ ACTUAL_TCPDUMP_COMMIT="$(git -C "$TCPDUMP_DIR" rev-parse HEAD)"
 (
     cd "$LIBPCAP_DIR"
     ./autogen.sh
-    ./configure \
+    CC=musl-gcc CPPFLAGS="$MUSL_CPPFLAGS" ./configure \
         --disable-shared \
         --without-libnl \
         --disable-dbus \
@@ -109,7 +127,7 @@ ACTUAL_TCPDUMP_COMMIT="$(git -C "$TCPDUMP_DIR" rev-parse HEAD)"
 (
     cd "$TCPDUMP_DIR"
     ./autogen.sh
-    LDFLAGS='-static' ./configure \
+    CC=musl-gcc CPPFLAGS="$MUSL_CPPFLAGS" LDFLAGS='-static' ./configure \
         --without-smi \
         --without-crypto \
         --without-cap-ng

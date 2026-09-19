@@ -82,6 +82,7 @@ jobs:
             automake \
             bison \
             flex \
+            linux-libc-dev \
             pkg-config
 
       - name: Build and publish tcpdump

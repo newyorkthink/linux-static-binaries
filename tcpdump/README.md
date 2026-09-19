@@ -25,13 +25,13 @@ tcpdump 与 libpcap 的 GitHub 仓库均以稳定 Git Tag 发布正式源码。�
 本仓库按以下方式构建：
 
 1. 从官方源码动态 Checkout 最新稳定 libpcap。
-2. 使用上游 Autoconf 构建 `libpcap.a`，关闭 shared library。
+2. 使用 `musl-gcc` 和上游 Autoconf 构建 `libpcap.a`，关闭 shared library。构建前从 `linux-libc-dev` 提供的 Linux UAPI 头中复制 `linux/`、`asm-generic/` 和当前架构 `asm/` 到独立目录，仅把该目录加入 musl 的预处理头搜索路径，不直接加入宿主 glibc 头目录。
 3. 为避免最终静态链接被宿主机可选开发库污染，libpcap 显式关闭 libnl、D-Bus 和 RDMA 集成；Linux 原生 packet socket、BPF 过滤、pcap/pcapng 读写等核心能力仍由 libpcap 自身提供。
 4. 动态 Checkout 最新稳定 tcpdump，把上述本地 `libpcap.a` 作为抓包库。
-5. tcpdump 关闭可选 libsmi、libcrypto、libcap-ng 集成，并使用 `LDFLAGS=-static` 完成最终链接。
+5. tcpdump 同样使用 `musl-gcc` 与同一套隔离 Linux UAPI 头，关闭可选 libsmi、libcrypto、libcap-ng 集成，并使用 `LDFLAGS=-static` 完成最终链接。
 6. 最终使用 `file` 与 `readelf` 静态检查：必须是 x86-64 ELF，不得存在 ELF interpreter 或动态 `NEEDED` 项。
 
-因此，目标机器**不需要安装** Debian/Kali 的 `libpcap0.8t64` 才能启动这个 Release 中的 tcpdump；libpcap 已经静态链接在同一个 ELF 文件中。
+因此，`linux-libc-dev` 只属于构建时依赖；目标机器**不需要安装**它，也不需要安装 Debian/Kali 的 `libpcap0.8t64`。libpcap 与 musl libc 都链接进同一个静态 ELF 文件中。
 
 ## 单文件与功能取舍
 
