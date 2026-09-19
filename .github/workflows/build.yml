@@ -14,6 +14,7 @@ on:
         options:
           - lshw
           - microsocks
+          - tcpdump
       release_integrity_repair:
         description: '内部使用：由 Release 完整性监督触发'
         required: false
@@ -26,6 +27,8 @@ on:
       - '!lshw/**/*.md'
       - 'microsocks/**'
       - '!microsocks/**/*.md'
+      - 'tcpdump/**'
+      - '!tcpdump/**/*.md'
       - '.github/actions/build-static/action.yml'
       - '.github/workflows/build.yml'
 
@@ -58,6 +61,39 @@ jobs:
           asset_name: lshw
           legacy_asset_names: |
             lshw.tar.xz
+          github_token: ${{ github.token }}
+
+  build-tcpdump:
+    name: Build tcpdump
+    if: ${{ github.event_name != 'workflow_dispatch' || inputs.target == 'tcpdump' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install tcpdump build dependencies
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends \
+            autoconf \
+            automake \
+            bison \
+            flex \
+            pkg-config
+
+      - name: Build and publish tcpdump
+        uses: ./.github/actions/build-static
+        with:
+          software_key: tcpdump
+          build_script: tcpdump/build.sh
+          artifact_path: tcpdump/dist/tcpdump
+          checksum_path: tcpdump/dist/tcpdump.sha256
+          version_file: tcpdump/dist/version.txt
+          license_file: tcpdump/LICENSE
+          asset_name: tcpdump
           github_token: ${{ github.token }}
 
   build-microsocks:
