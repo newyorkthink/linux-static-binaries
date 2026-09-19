@@ -19,73 +19,44 @@ lshw（Hardware Lister）用于读取并整理 Linux 主机的硬件配置信息
 
 ## 构建方式
 
-上游 README 明确提供 `src/` 目录下的 `make static` 静态构建目标。本仓库：
+上游 README 明确提供 `src/` 目录下的 `make static` 静态构建目标。本仓库先并行完成上游 `core` 静态库，再以非并行顶层 `make static` 构建 `lshw-static`，避开上游并行依赖竞态；不使用 `-march=native`。同时使用 `NO_VERSION_CHECK=1` 关闭 `lshw -version` 的远程 DNS 版本查询。locale catalog 不是程序启动或硬件扫描的必需文件；目标系统没有对应翻译时，gettext 会回退到源码中的英文文本。
 
-1. 动态 Checkout 当前最新稳定 Tag 并核对 Commit。
-2. 先并行完成上游 `core` 静态库，再以非并行顶层 `make static` 构建 `lshw-static`；这样避开上游 `static` 目标在并行 Make 下的依赖竞态。不使用 `-march=native`，保持通用 x86_64 目标。
-3. 使用上游提供的 `NO_VERSION_CHECK=1` 构建选项关闭 `lshw -version` 的远程 DNS 版本查询；硬件扫描功能不受影响，同时减少静态链接依赖和运行时联网行为。
-4. 将静态产物按上游默认 CLI 安装布局放为 `usr/sbin/lshw`。
-5. 使用 `file` / `readelf` 静态检查最终 ELF，确认是 x86-64、没有 ELF interpreter、没有动态 `NEEDED` 项。
-6. 静态核对完整运行时文件清单后，归档为 `lshw.tar.xz`。
+最终只复制静态 ELF 为 `dist/lshw`，并使用 `file` / `readelf` 确认是 x86-64、没有 ELF interpreter、没有动态 `NEEDED` 项。
 
-## 标准运行时安装集
+## 上游附加文件核查
 
-上游默认 `make install` 的 CLI 安装集包含：
+上游默认 `make install` 除主程序外还会安装：
 
-```text
-usr/sbin/lshw
-usr/share/man/man1/lshw.1
-usr/share/lshw/pci.ids
-usr/share/lshw/usb.ids
-usr/share/lshw/oui.txt
-usr/share/lshw/manuf.txt
-usr/share/lshw/pnp.ids
-usr/share/lshw/pnpid.txt
-usr/share/locale/ca/LC_MESSAGES/lshw.mo
-usr/share/locale/es/LC_MESSAGES/lshw.mo
-usr/share/locale/fr/LC_MESSAGES/lshw.mo
-```
+- `lshw.1`：man page，只用于离线帮助文档，不影响硬件扫描。
+- ca / es / fr 的 `lshw.mo`：界面文本翻译；单文件不携带这些 locale，缺少翻译时程序使用源码中的英文文本。
+- `pci.ids`、`usb.ids`、`oui.txt`、`manuf.txt`、`pnp.ids`、`pnpid.txt`：硬件厂商 / 产品名称数据库，用于把部分数字 ID 解析成更友好的名称。
 
-上游 GTK GUI 是单独的 `make gui` / `make install-gui` 可选目标，不属于默认 CLI 安装集，因此本仓库不把 `gtk-lshw` 混入静态 CLI 资产。
+这些硬件数据库有用，但属于名称解析增强，不是 lshw 扫描 `/sys`、`/proc`、DMI、PCI、USB 等核心硬件信息的必要文件。上游代码会继续从 `/usr/share/lshw/`、`/usr/share/hwdata/`、`/usr/share/misc/` 等系统位置查找现有数据库；目标系统已有相应数据时仍可使用。
 
-Debian 的 CLI 包同样将 GUI 分开处理，并提供 `lshw`、man page 和 locale；PCI / USB ID 数据在 Debian 中由外部数据包提供。为了保持上游默认安装语义，本仓库的归档继续携带上游 `make install` 所列出的六个数据文件。
+上游当前没有提供把这六个数据库直接嵌入 `lshw` ELF 的原生构建开关。真正内嵌需要修改上游数据加载代码并把数 MB 文本转换成编译期资源；本仓库不为此大幅修改上游。目标系统没有任何对应数据库时，单文件仍能扫描硬件，但部分 PCI / USB / PnP 厂商或型号名称可能不如带数据库时完整。
+
+上游 GTK GUI 是独立可选目标，不属于本仓库的 CLI 单文件。
 
 ## Release 资产
 
-lshw 使用完整安装树归档：
+只发布一个可直接下载执行的静态文件：
 
 ```text
-lshw.tar.xz
+lshw
 ```
 
-所有软件共用：
-
-```text
-software_versions.json
-```
-
-其中 `lshw` 条目记录本次 Build 动态解析出的打包版本、固定资产名和归档 SHA-256。
-
-如果只需要可执行文件，可从归档中单独取出：
-
-```text
-usr/sbin/lshw
-```
-
-该 ELF 本身是静态链接的；但单独取出时不会同时携带归档里的 man page、翻译和硬件 ID 数据文件。
+旧的 `lshw.tar.xz` 在单文件成功发布后由发布流程删除。所有软件共用 `software_versions.json`，其中 `lshw` 条目记录打包版本、固定资产名和最终 ELF SHA-256。
 
 ## 使用
 
-完整安装树解压后，可直接运行其中的静态程序：
-
 ```bash
-sudo ./usr/sbin/lshw
+sudo ./lshw
 ```
 
-若只需要较少信息，可使用上游参数，例如：
+若只需要较少信息：
 
 ```bash
-sudo ./usr/sbin/lshw -short
+sudo ./lshw -short
 ```
 
 某些硬件信息只有 root 权限下才能完整读取。

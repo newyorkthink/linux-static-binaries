@@ -46,23 +46,18 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Install lshw build dependencies
-        shell: bash
-        run: |
-          set -Eeuo pipefail
-          sudo apt-get update
-          sudo apt-get install -y --no-install-recommends gettext
-
       - name: Build and publish lshw
         uses: ./.github/actions/build-static
         with:
           software_key: lshw
           build_script: lshw/build.sh
-          artifact_path: lshw/dist/lshw.tar.xz
-          checksum_path: lshw/dist/lshw.tar.xz.sha256
+          artifact_path: lshw/dist/lshw
+          checksum_path: lshw/dist/lshw.sha256
           version_file: lshw/dist/version.txt
           license_file: lshw/COPYING
-          asset_name: lshw.tar.xz
+          asset_name: lshw
+          legacy_asset_names: |
+            lshw.tar.xz
           github_token: ${{ github.token }}
 
   build-microsocks:
