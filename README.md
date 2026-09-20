@@ -26,6 +26,7 @@
   scripts/supervise_release_integrity.py Release 完整性检查逻辑
   workflows/build.yml                   正式构建 Workflow
   workflows/supervise-release-integrity.yml  Release 完整性监督与单次自愈
+  workflows/cleanup-actions-runs.yml    七天前已完成 Actions 记录自动清理
 <software>/
   build.sh                软件构建脚本；动态解析最新稳定上游版本
   version.conf            仅保存打包修订号或必要的构建环境 / 依赖固定值，不得锁目标应用版本
@@ -69,6 +70,10 @@ software_versions.json
 手动触发的 Build 首次失败时，监督只重新运行失败 Job 一次；Push 触发的失败不自动重跑。
 
 因此仓库增加软件时，不需要在根 README 继续追加软件表格、版本号、命令或 Release 资产列表。
+
+### Actions 运行记录清理
+
+`.github/workflows/cleanup-actions-runs.yml` 每天自动删除七天前已经结束的 Actions 运行记录及其日志，也支持在 Actions 页面手动触发。清理不处理运行中或排队中的任务，不修改 Release、二进制资产、标签或提交。
 
 ## 版本管理
 

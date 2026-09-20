@@ -47,7 +47,7 @@ jobs:
     timeout-minutes: 20
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       - name: Build and publish lshw
         uses: ./.github/actions/build-static
@@ -70,7 +70,7 @@ jobs:
     timeout-minutes: 25
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       - name: Install tcpdump build dependencies
         shell: bash
@@ -104,7 +104,7 @@ jobs:
     timeout-minutes: 15
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       - name: Build and publish MicroSocks
         uses: ./.github/actions/build-static

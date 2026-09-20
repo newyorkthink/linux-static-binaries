@@ -70,7 +70,7 @@ jobs:
 
       - name: Checkout repository
         if: steps.source.outputs.should_supervise == 'true'
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
 
       - name: Read latest Release state
         if: steps.source.outputs.should_supervise == 'true'

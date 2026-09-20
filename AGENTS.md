@@ -203,6 +203,17 @@ Release 完整性监督固定使用：
 - 手动触发的构建首次失败时，监督可以只重新运行失败 Job 一次；第二次仍失败不得继续循环。Push 触发的构建失败不自动重跑。
 - 监督 Workflow 属于发布完整性维护，不得加入程序启动、端口连接或其他运行时冒烟测试。
 
+Actions 运行记录清理固定使用：
+
+```text
+.github/workflows/cleanup-actions-runs.yml
+```
+
+- 每天删除七天前已经结束的 Actions 运行记录及日志；不得处理运行中或排队中的任务。
+- 清理只允许调用当前仓库的 GitHub 官方 Actions API，不得删除或修改 Release、二进制资产、标签、提交和源码文件。
+- Workflow 必须保留手动触发入口、`actions: write` 与 `contents: read` 最小权限，以及防止并发重复清理的 concurrency 配置。
+- Dependabot 会通过新建分支和 Pull Request 提交更新，与本仓库“禁止创建任何 Git 分支”的永久规则冲突，因此不得配置 Dependabot；GitHub Actions 组件版本应在完整核对官方当前稳定版本后直接更新现有 `main`。
+
 ## 9. Release 规则
 
 正式滚动 Release 固定使用：
