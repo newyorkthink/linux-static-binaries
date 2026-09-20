@@ -39,7 +39,6 @@ def load_catalog() -> list[dict]:
 
     required = {
         "key",
-        "name",
         "dir",
         "software_key",
         "build_script",
@@ -69,6 +68,9 @@ def load_catalog() -> list[dict]:
             raise SystemExit(f"{key} 的 timeout_minutes 无效。")
         seen_keys.add(key)
         seen_dirs.add(directory)
+    ordered_keys = [package["key"] for package in packages]
+    if ordered_keys != sorted(ordered_keys):
+        raise SystemExit("静态二进制构建清单必须按 key 的字母顺序排列。")
     return packages
 
 
@@ -84,9 +86,9 @@ def resolve_search(catalog: list[dict], query_raw: str) -> str:
     for package in catalog:
         candidates = (
             package["key"],
-            package["name"],
             package["dir"],
             package["build_script"],
+            package["asset_name"],
         )
         normalized = [normalize_search(value) for value in candidates]
         if query in normalized:
@@ -171,7 +173,10 @@ def main() -> None:
     else:
         raise SystemExit(f"不支持的触发事件：{event_name}")
 
-    selected_packages = [package for package in catalog if package["key"] in selected]
+    selected_packages = sorted(
+        (package for package in catalog if package["key"] in selected),
+        key=lambda package: package["key"],
+    )
     matrix = {"include": selected_packages}
     output_path = Path(os.environ["GITHUB_OUTPUT"])
     with output_path.open("a", encoding="utf-8") as output:

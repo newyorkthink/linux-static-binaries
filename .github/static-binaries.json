@@ -3,7 +3,6 @@
   "packages": [
     {
       "key": "lshw",
-      "name": "lshw",
       "dir": "lshw",
       "software_key": "lshw",
       "build_script": "lshw/build.sh",
@@ -18,7 +17,6 @@
     },
     {
       "key": "microsocks",
-      "name": "MicroSocks",
       "dir": "microsocks",
       "software_key": "microsocks",
       "build_script": "microsocks/build.sh",
@@ -33,7 +31,6 @@
     },
     {
       "key": "tcpdump",
-      "name": "tcpdump",
       "dir": "tcpdump",
       "software_key": "tcpdump",
       "build_script": "tcpdump/build.sh",
