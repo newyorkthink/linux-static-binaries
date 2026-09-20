@@ -182,10 +182,22 @@ AI 永久禁止在本仓库使用 `git revert`、GitHub 网页 Revert 操作，�
 .github/actions/build-static/action.yml
 ```
 
+软件构建参数与 Job 选择逻辑固定使用：
+
+```text
+.github/static-binaries.json
+.github/scripts/plan_static_jobs.py
+```
+
 要求：
 
 - 默认只保留一个正式构建 Workflow；新增软件不得无理由新增一份独立 Workflow。
 - Workflow 负责触发条件、Job 编排和软件选择；具体软件编译逻辑放在软件自己的 `build.sh`。
+- 正式构建必须先由规划 Job 读取构建清单，再用一个 matrix Build Job 为每个选中软件创建独立 runner；`fail-fast` 必须为 `false`，单个软件失败不得取消其他软件的编译。
+- 手动触发必须同时保留单项下拉、`all` 全量选择和模糊名称输入；模糊输入优先于下拉，匹配不到或匹配多个软件时必须失败，不得猜测目标。
+- Push 触发时只选择发生非文档变更的软件；共享 Action、规划脚本、构建清单或正式 Workflow 发生变化时才选择全部软件。
+- `.github/static-binaries.json` 是 matrix 参数唯一清单；新增软件时必须同步加入手动下拉选项，并保持 `key`、`software_key`、目录名和完整性自愈目标一致。
+- 软件特有的系统构建依赖可以写入清单的 `apt_packages`；实际编译命令、动态版本解析和产物生成仍必须留在软件自己的 `build.sh`，不得塞进规划脚本或 Workflow。
 - 可以复用的安装、产物检查、Release 上传和统一版本清单更新逻辑放在共享 composite Action 中。
 - 文档修改不得无意义触发二进制重建。
 - Public 仓库可以正常使用 GitHub-hosted runner 完成必要构建，不得为了节省 Actions 分钟省略正确性所需步骤；但必须避免明显重复或错误触发。

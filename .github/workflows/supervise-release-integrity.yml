@@ -145,10 +145,19 @@ jobs:
             echo "无法安全自愈：不存在 $repair_key/build.sh。" >&2
             exit 1
           }
-          grep -Fxq "          - $repair_key" .github/workflows/build.yml || {
-            echo "无法安全自愈：workflow_dispatch.target 中不存在唯一目标 $repair_key。" >&2
-            exit 1
-          }
+          python3 - .github/static-binaries.json "$repair_key" <<'PY'
+          import json, sys
+          path, key = sys.argv[1:]
+          packages = json.load(open(path, encoding='utf-8')).get('packages', [])
+          matches = [
+              package for package in packages
+              if package.get('key') == key
+              and package.get('software_key') == key
+              and package.get('dir') == key
+          ]
+          if len(matches) != 1:
+              raise SystemExit(f'无法安全自愈：构建清单中不存在唯一目标 {key}。')
+          PY
 
           gh api --method POST \
             "repos/$GITHUB_REPOSITORY/actions/workflows/build.yml/dispatches" \

@@ -1,0 +1,50 @@
+{
+  "description": "静态二进制构建清单，由 build.yml 和 plan_static_jobs.py 共同使用。",
+  "packages": [
+    {
+      "key": "lshw",
+      "name": "lshw",
+      "dir": "lshw",
+      "software_key": "lshw",
+      "build_script": "lshw/build.sh",
+      "artifact_path": "lshw/dist/lshw",
+      "checksum_path": "lshw/dist/lshw.sha256",
+      "version_file": "lshw/dist/version.txt",
+      "license_file": "lshw/COPYING",
+      "asset_name": "lshw",
+      "legacy_asset_names": "lshw.tar.xz",
+      "apt_packages": "",
+      "timeout_minutes": 20
+    },
+    {
+      "key": "microsocks",
+      "name": "MicroSocks",
+      "dir": "microsocks",
+      "software_key": "microsocks",
+      "build_script": "microsocks/build.sh",
+      "artifact_path": "microsocks/dist/microsocks",
+      "checksum_path": "microsocks/dist/microsocks.sha256",
+      "version_file": "microsocks/dist/version.txt",
+      "license_file": "microsocks/COPYING",
+      "asset_name": "microsocks",
+      "legacy_asset_names": "microsocks-x86_64-linux",
+      "apt_packages": "",
+      "timeout_minutes": 15
+    },
+    {
+      "key": "tcpdump",
+      "name": "tcpdump",
+      "dir": "tcpdump",
+      "software_key": "tcpdump",
+      "build_script": "tcpdump/build.sh",
+      "artifact_path": "tcpdump/dist/tcpdump",
+      "checksum_path": "tcpdump/dist/tcpdump.sha256",
+      "version_file": "tcpdump/dist/version.txt",
+      "license_file": "tcpdump/LICENSE",
+      "asset_name": "tcpdump",
+      "legacy_asset_names": "",
+      "apt_packages": "autoconf automake bison flex linux-libc-dev pkg-config",
+      "timeout_minutes": 25
+    }
+  ]
+}

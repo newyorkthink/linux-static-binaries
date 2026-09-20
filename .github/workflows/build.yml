@@ -1,20 +1,26 @@
 name: Build Static Binaries
 
 run-name: >-
-  ${{ github.event_name == 'workflow_dispatch' && inputs.release_integrity_repair == true && format('Release integrity repair: {0}', inputs.target) || github.event_name == 'workflow_dispatch' && format('Build {0}', inputs.target) || github.event.head_commit.message }}
+  ${{ github.event_name == 'workflow_dispatch' && inputs.release_integrity_repair == true && format('Release integrity repair: {0}', inputs.target) || github.event_name == 'workflow_dispatch' && (inputs.target_search != '' && format('Build {0}', inputs.target_search) || inputs.target == 'all' && 'Build all static binaries' || format('Build {0}', inputs.target)) || github.event.head_commit.message }}
 
 on:
   workflow_dispatch:
     inputs:
       target:
-        description: '选择要构建的软件'
+        description: '选择要构建的软件（选择 all 构建全部）'
         required: true
-        default: 'microsocks'
+        default: 'all'
         type: choice
         options:
+          - all
           - lshw
           - microsocks
           - tcpdump
+      target_search:
+        description: '模糊输入软件名称（可留空；填写时优先于上方下拉）'
+        required: false
+        default: ''
+        type: string
       release_integrity_repair:
         description: '内部使用：由 Release 完整性监督触发'
         required: false
@@ -29,7 +35,9 @@ on:
       - '!microsocks/**/*.md'
       - 'tcpdump/**'
       - '!tcpdump/**/*.md'
-      - '.github/actions/build-static/action.yml'
+      - '.github/actions/build-static/**'
+      - '.github/scripts/plan_static_jobs.py'
+      - '.github/static-binaries.json'
       - '.github/workflows/build.yml'
 
 permissions:
@@ -40,82 +48,68 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
-  build-lshw:
-    name: Build lshw
-    if: ${{ github.event_name != 'workflow_dispatch' || inputs.target == 'lshw' }}
+  plan:
+    name: Plan
     runs-on: ubuntu-latest
-    timeout-minutes: 20
+    timeout-minutes: 5
+    outputs:
+      should_build: ${{ steps.plan.outputs.should_build }}
+      matrix: ${{ steps.plan.outputs.matrix }}
+      package_count: ${{ steps.plan.outputs.package_count }}
 
     steps:
       - uses: actions/checkout@v7
-
-      - name: Build and publish lshw
-        uses: ./.github/actions/build-static
         with:
-          software_key: lshw
-          build_script: lshw/build.sh
-          artifact_path: lshw/dist/lshw
-          checksum_path: lshw/dist/lshw.sha256
-          version_file: lshw/dist/version.txt
-          license_file: lshw/COPYING
-          asset_name: lshw
-          legacy_asset_names: |
-            lshw.tar.xz
-          github_token: ${{ github.token }}
+          fetch-depth: 0
 
-  build-tcpdump:
-    name: Build tcpdump
-    if: ${{ github.event_name != 'workflow_dispatch' || inputs.target == 'tcpdump' }}
-    runs-on: ubuntu-latest
-    timeout-minutes: 25
-
-    steps:
-      - uses: actions/checkout@v7
-
-      - name: Install tcpdump build dependencies
+      - name: Select build jobs
+        id: plan
         shell: bash
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          SELECTED_TARGET: ${{ inputs.target }}
+          TARGET_SEARCH: ${{ inputs.target_search }}
+          RELEASE_INTEGRITY_REPAIR: ${{ inputs.release_integrity_repair }}
+          BEFORE_SHA: ${{ github.event.before }}
+          AFTER_SHA: ${{ github.sha }}
         run: |
           set -Eeuo pipefail
-          sudo apt-get update
-          sudo apt-get install -y --no-install-recommends \
-            autoconf \
-            automake \
-            bison \
-            flex \
-            linux-libc-dev \
-            pkg-config
+          python3 .github/scripts/plan_static_jobs.py
 
-      - name: Build and publish tcpdump
-        uses: ./.github/actions/build-static
-        with:
-          software_key: tcpdump
-          build_script: tcpdump/build.sh
-          artifact_path: tcpdump/dist/tcpdump
-          checksum_path: tcpdump/dist/tcpdump.sha256
-          version_file: tcpdump/dist/version.txt
-          license_file: tcpdump/LICENSE
-          asset_name: tcpdump
-          github_token: ${{ github.token }}
-
-  build-microsocks:
-    name: Build MicroSocks
-    if: ${{ github.event_name != 'workflow_dispatch' || inputs.target == 'microsocks' }}
+  build:
+    name: Build ${{ matrix.name }}
+    needs: plan
+    if: needs.plan.outputs.package_count != '0'
+    strategy:
+      fail-fast: false
+      matrix: ${{ fromJSON(needs.plan.outputs.matrix) }}
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    timeout-minutes: ${{ matrix.timeout_minutes }}
 
     steps:
       - uses: actions/checkout@v7
 
-      - name: Build and publish MicroSocks
+      - name: Install package-specific build dependencies
+        if: matrix.apt_packages != ''
+        shell: bash
+        env:
+          APT_PACKAGES: ${{ matrix.apt_packages }}
+        run: |
+          set -Eeuo pipefail
+          read -r -a packages <<< "$APT_PACKAGES"
+          (( ${#packages[@]} > 0 ))
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends "${packages[@]}"
+
+      - name: Build and publish ${{ matrix.name }}
         uses: ./.github/actions/build-static
         with:
-          software_key: microsocks
-          build_script: microsocks/build.sh
-          artifact_path: microsocks/dist/microsocks
-          checksum_path: microsocks/dist/microsocks.sha256
-          version_file: microsocks/dist/version.txt
-          license_file: microsocks/COPYING
-          asset_name: microsocks
-          legacy_asset_names: |
-            microsocks-x86_64-linux
+          software_key: ${{ matrix.software_key }}
+          build_script: ${{ matrix.build_script }}
+          artifact_path: ${{ matrix.artifact_path }}
+          checksum_path: ${{ matrix.checksum_path }}
+          version_file: ${{ matrix.version_file }}
+          license_file: ${{ matrix.license_file }}
+          asset_name: ${{ matrix.asset_name }}
+          legacy_asset_names: ${{ matrix.legacy_asset_names }}
           github_token: ${{ github.token }}

@@ -23,6 +23,8 @@
 ```text
 .github/
   actions/build-static/                 共享静态构建、发布和版本清单更新 Action
+  static-binaries.json                  软件构建参数清单
+  scripts/plan_static_jobs.py           手动选择、模糊匹配和 Push 变更规划
   scripts/supervise_release_integrity.py Release 完整性检查逻辑
   workflows/build.yml                   正式构建 Workflow
   workflows/supervise-release-integrity.yml  Release 完整性监督与单次自愈
@@ -60,6 +62,12 @@ software_versions.json
 ```
 
 版本清单写入采用短期互斥锁：每个 Build 先独立完成构建、Release 资产上传及资产 digest 校验，取得锁后通过唯一 Release Asset ID 读取当前 `software_versions.json`，只合并自己的条目，再以固定资产名覆盖上传并重新按唯一 Asset ID 校验 digest、下载内容和当前条目。锁只覆盖版本清单读改写临界区，不串行软件构建。
+
+### 构建选择与并发解耦
+
+`.github/workflows/build.yml` 先由规划 Job 读取 `.github/static-binaries.json`，再通过 matrix 为每个选中软件创建独立构建 Job。各软件并发编译，某个软件失败不会取消其他软件；只有共享 `software_versions.json` 的读改写阶段使用短时间互斥锁。
+
+手动触发时可从下拉列表选择单个软件或 `all`，也可在模糊输入框填写软件名称；模糊输入优先于下拉选择。输入会在 key、显示名称、目录名和构建脚本路径中匹配，匹配不到或同时匹配多个软件时直接报错，不会猜测目标。Push 触发时只构建实际发生非文档变更的软件；共享 Action、规划脚本、构建清单或正式 Workflow 改动时构建全部软件。
 
 ### Release 完整性监督与单次自愈
 
