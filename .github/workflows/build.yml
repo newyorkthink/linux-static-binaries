@@ -16,6 +16,7 @@ on:
           - lshw
           - microsocks
           - tcpdump
+          - xclipglue
       target_search:
         description: '模糊输入软件名称（可留空；填写时优先于上方下拉）'
         required: false
@@ -35,6 +36,8 @@ on:
       - '!microsocks/**/*.md'
       - 'tcpdump/**'
       - '!tcpdump/**/*.md'
+      - 'xclipglue/**'
+      - '!xclipglue/**/*.md'
       - '.github/actions/build-static/**'
       - '.github/scripts/plan_static_jobs.py'
       - '.github/static-binaries.json'

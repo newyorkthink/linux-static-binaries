@@ -42,6 +42,20 @@
       "legacy_asset_names": "",
       "apt_packages": "autoconf automake bison flex linux-libc-dev pkg-config",
       "timeout_minutes": 25
+    },
+    {
+      "key": "xclipglue",
+      "dir": "xclipglue",
+      "software_key": "xclipglue",
+      "build_script": "xclipglue/build.sh",
+      "artifact_path": "xclipglue/dist/xclipglue",
+      "checksum_path": "xclipglue/dist/xclipglue.sha256",
+      "version_file": "xclipglue/dist/version.txt",
+      "license_file": "xclipglue/LICENSE",
+      "asset_name": "xclipglue",
+      "legacy_asset_names": "",
+      "apt_packages": "libxcb1-dev libxau-dev libxdmcp-dev",
+      "timeout_minutes": 15
     }
   ]
 }
