@@ -44,6 +44,20 @@
       "timeout_minutes": 25
     },
     {
+      "key": "tree",
+      "dir": "tree",
+      "software_key": "tree",
+      "build_script": "tree/build.sh",
+      "artifact_path": "tree/dist/tree",
+      "checksum_path": "tree/dist/tree.sha256",
+      "version_file": "tree/dist/version.txt",
+      "license_file": "tree/LICENSE",
+      "asset_name": "tree",
+      "legacy_asset_names": "",
+      "apt_packages": "",
+      "timeout_minutes": 15
+    },
+    {
       "key": "xclipglue",
       "dir": "xclipglue",
       "software_key": "xclipglue",
