@@ -13,32 +13,29 @@ BUILD_BASE="${RUNNER_TEMP:-$SCRIPT_DIR/.build}"
 DIST_DIR="$SCRIPT_DIR/dist"
 ARTIFACT_NAME='tree'
 
-TREE_VERSION="$(python3 - "$PRIMARY_INDEX" <<'PY'
-import re
-import sys
-import urllib.request
-
-url = sys.argv[1]
-request = urllib.request.Request(url, headers={'User-Agent': 'linux-static-binaries'})
-with urllib.request.urlopen(request, timeout=30) as response:
-    page = response.read().decode('utf-8', errors='replace')
-
-versions = set(re.findall(r'tree-([0-9]+(?:\\.[0-9]+)+)\\.tgz', page))
-if not versions:
-    raise SystemExit('无法从 tree 官方发布目录解析稳定版本。')
-
-def version_key(value: str) -> tuple[int, ...]:
-    return tuple(int(part) for part in value.split('.'))
-
-print(max(versions, key=version_key))
-PY
+stable_tags="$(
+    git ls-remote --tags --refs "$UPSTREAM_URL" |
+        awk '
+            {
+                tag=$2
+                sub(/^refs\/tags\//, "", tag)
+                if (tag ~ /^[0-9]+([.][0-9]+)+$/)
+                    print tag
+            }
+        '
 )"
+[[ -n "$stable_tags" ]] || {
+    echo '无法从 tree 官方 Git 仓库解析稳定数字 Tag。' >&2
+    exit 1
+}
+
+TREE_TAG="$(printf '%s\n' "$stable_tags" | sort -V | tail -n 1)"
+TREE_VERSION="$TREE_TAG"
 [[ "$TREE_VERSION" =~ ^[0-9]+([.][0-9]+)+$ ]] || {
     echo "解析出的 tree 稳定版本格式异常：$TREE_VERSION" >&2
     exit 1
 }
 
-TREE_TAG="$TREE_VERSION"
 TREE_COMMIT="$(git ls-remote --tags "$UPSTREAM_URL" "refs/tags/$TREE_TAG^{}" | awk 'NR == 1 {print $1}')"
 if [[ -z "$TREE_COMMIT" ]]; then
     TREE_COMMIT="$(git ls-remote --tags --refs "$UPSTREAM_URL" "refs/tags/$TREE_TAG" | awk 'NR == 1 {print $1}')"

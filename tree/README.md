@@ -8,9 +8,9 @@
 
 上游 README 将 `oldmanprogrammer.net` 标为主发布站，并将 GitHub / GitLab 标为备份 Git 站点。本仓库每次正式 Build：
 
-1. 从官方主站 `https://oldmanprogrammer.net/tar/tree/` 动态枚举 `tree-<数字版本>.tgz`，按数字版本选择当前最新稳定版本。
-2. 下载该版本的官方 tarball，不使用第三方二进制或发行版 `.deb` 作为构建输入。
-3. 在官方 GitHub 备份仓库中解析同版本 Tag 对应的 Commit SHA，Checkout 后核对实际 Commit。
+1. 从官方 GitHub 备份仓库动态读取纯数字稳定 Tag（例如 `2.3.2`），排除带字母后缀的 beta 等非稳定 Tag，并按版本号选择当前最新稳定版本。
+2. 使用该版本号下载官方主发布站的 `tree-<版本>.tgz`，不使用第三方二进制或发行版 `.deb` 作为构建输入。
+3. 动态解析同版本 Tag 对应的 Commit SHA，Checkout 后再次核对实际 Commit。
 4. 对 Makefile 和全部实际参与 `tree` 编译的 C / 头文件逐一比较官方 tarball 与同版本 Git Tag；不一致时停止构建。
 5. 动态版本只写入构建生成的 `dist/version.txt` 和 Release `software_versions.json`，不会写回仓库成为后续版本锁定值。
 
