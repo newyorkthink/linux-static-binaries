@@ -15,6 +15,7 @@ on:
           - all
           - lshw
           - microsocks
+          - strace
           - tcpdump
           - tree
           - xclipglue
@@ -35,6 +36,8 @@ on:
       - '!lshw/**/*.md'
       - 'microsocks/**'
       - '!microsocks/**/*.md'
+      - 'strace/**'
+      - '!strace/**/*.md'
       - 'tcpdump/**'
       - '!tcpdump/**/*.md'
       - 'tree/**'

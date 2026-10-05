@@ -30,6 +30,20 @@
       "timeout_minutes": 15
     },
     {
+      "key": "strace",
+      "dir": "strace",
+      "software_key": "strace",
+      "build_script": "strace/build.sh",
+      "artifact_path": "strace/dist/strace",
+      "checksum_path": "strace/dist/strace.sha256",
+      "version_file": "strace/dist/version.txt",
+      "license_file": "strace/COPYING",
+      "asset_name": "strace",
+      "legacy_asset_names": "",
+      "apt_packages": "autoconf automake gawk linux-libc-dev m4",
+      "timeout_minutes": 25
+    },
+    {
       "key": "tcpdump",
       "dir": "tcpdump",
       "software_key": "tcpdump",
