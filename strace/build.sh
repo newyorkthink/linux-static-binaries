@@ -80,14 +80,15 @@ ACTUAL_COMMIT="$(git -C "$SOURCE_DIR" rev-parse HEAD)"
     exit 1
 }
 
-MUSL_CFLAGS="-O2 -static -isystem $LINUX_UAPI_DIR"
+MUSL_CPPFLAGS="-isystem $LINUX_UAPI_DIR"
+MUSL_CFLAGS="-O2 -static"
 (
     cd "$SOURCE_DIR"
     ./bootstrap
-    CC=musl-gcc CFLAGS="$MUSL_CFLAGS" LDFLAGS='-static' ./configure \
+    CC=musl-gcc CFLAGS="$MUSL_CFLAGS" CPPFLAGS="$MUSL_CPPFLAGS" LDFLAGS='-static' ./configure \
         --enable-mpers=no \
         --enable-stacktrace=no
-    make -j"$(nproc)"
+    make -j"$(nproc)" CPPFLAGS="$MUSL_CPPFLAGS"
 )
 
 install -Dm755 "$SOURCE_DIR/src/strace" "$DIST_DIR/$ARTIFACT_NAME"

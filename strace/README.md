@@ -21,7 +21,7 @@ strace 以官方 Git Tag `v<数字版本>` 发布稳定源码。本仓库每次 
 为了得到可跨常见 Linux 发行版使用的静态单文件，只增加这些构建参数：
 
 - `CC=musl-gcc`，`CFLAGS` 带 `-static`，`LDFLAGS=-static`：把 libc 静态链接进最终 ELF。
-- 从 `linux-libc-dev` 复制 `linux/`、`asm-generic/` 和当前架构 `asm/` 到独立目录，只把这个目录加进头文件搜索路径，不把宿主 glibc 头目录混进去。
+- 从 `linux-libc-dev` 复制 `linux/`、`asm-generic/` 和当前架构 `asm/` 到独立目录，通过 `CPPFLAGS` 加进头文件搜索路径。strace 生成 ioctl 表时不使用 `CFLAGS`，`musl-gcc` 也不会搜索宿主 `/usr/include`。
 - `--enable-mpers=no`：不编译 32 位 personality。`musl-gcc` 没有 `-m32`。
 - `--enable-stacktrace=no`：不链接 libdw 或 libunwind。因此没有 `strace -k` 的调用栈展开。
 
