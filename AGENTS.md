@@ -163,7 +163,7 @@ AI 永久禁止把本仓库“目标应用本身”的 Version、Tag 或 Commit 
 - 动态得到本次稳定 Tag 后，可以并且应当在当前 Build 内解析该 Tag 对应的不可变 Commit SHA，Checkout 后再次核对实际 Commit；该 Commit 仅用于本次构建的来源校验，不得永久写回仓库成为锁定值。
 - 本仓库不使用 `version.conf` 或 `PACKAGE_REVISION`，`dist/version.txt` 只保存本次构建实际使用的上游版本。
 - 依赖项、编译工具链、容器基础镜像、GitHub Actions Commit SHA 等如果为了兼容性、安全性或可复现性确实需要固定版本，必须单独判断；“构建依赖可锁定”不得被解释成“目标应用可锁定”。
-- README、注释和 `VERSIONS.md` 不得把某个目标应用 Version / Tag / Commit 描述成当前或未来 Build 的固定输入。实际构建版本必须来自当次动态解析结果，并由 `dist/version.txt` 和 Release 的 `software_versions.json` 记录。
+- README、注释和其他仓库文档不得把某个目标应用 Version / Tag / Commit 描述成当前或未来 Build 的固定输入。实际构建版本必须来自当次动态解析结果，并由 `dist/version.txt` 和 Release 的 `software_versions.json` 记录。
 
 任何与“固定目标应用版本以保证可复现”相冲突的旧规则，一律以本条为准。可审计性通过“本次动态解析稳定 Tag → 解析 Commit → Checkout → 核对 Commit → 记录最终构建版本和 SHA-256”实现，而不是通过把目标应用锁死在仓库中实现。
 
@@ -221,7 +221,7 @@ AI 永久禁止在本仓库使用 `git revert`、GitHub 网页 Revert 操作，�
 - 静态 ELF 校验、真实上游版本与 SHA-256 输出复用公共入口，`software_versions.json` 仍由各构建 Job 的共享 Action 独立更新。
 - 通用中文注释和分区标题按 [构建公共注释标准](./docs/build-comments.md) 逐字复用，不为注释整理改写已验证的专属编译命令。
 - 软件特有操作以 `# 本程序专属处理：` 说明具体用途；仓库公共入口新增的兼容逻辑以 `# 本仓库兼容处理：` 标注，必须紧邻对应命令或命令块。
-- 禁止恢复 `version.conf` 与固定 `PACKAGE_REVISION`，原有历史修订记录仅作为 `VERSIONS.md` 历史保留。
+- 禁止恢复 `version.conf` 与固定 `PACKAGE_REVISION`。
 
 ## 1. 仓库目标
 
@@ -241,7 +241,6 @@ AI 永久禁止在本仓库使用 `git revert`、GitHub 网页 Revert 操作，�
 - 根目录 `README.md`。
 - 本文件 `AGENTS.md`。
 - 目标软件目录中的 `README.md`。
-- 目标软件的 `VERSIONS.md`。
 - 目标软件构建脚本。
 - 与本次改动直接相关的 Workflow / composite Action。
 
@@ -280,14 +279,9 @@ AI 永久禁止在本仓库使用 `git revert`、GitHub 网页 Revert 操作，�
 
 更新构建逻辑时还必须核对许可证、标准安装集和构建方式是否发生变化。无法确认时不得猜测。
 
-## 6. 版本历史不可覆盖
+## 6. 动态版本记录
 
-每个软件必须维护 `VERSIONS.md`，用于记录本仓库打包方式和资产结构的历史变化。
-
-- 旧的打包变更记录不得为了“保持简洁”而删除或覆盖。
-- `VERSIONS.md` 不得作为构建输入，也不得持久化某个目标应用 Version / Tag / Commit 作为当前锁定值。
 - 上游版本变化由每次 Build 自动跟随最新稳定版，不需要提交一次“更新固定版本”的仓库改动。
-- 构建方式、编译参数、标准运行时安装集处理或 Release 资产结构发生实质变化时，在对应 `VERSIONS.md` 追加说明，不再维护打包修订号。
 - 构建脚本必须在最终静态 ELF 生成后写入 `dist/version.txt`，只记录本次实际构建的上游版本；该文件供构建与统一版本清单使用，不提交仓库，也不作为独立 Release 资产发布。
 
 ## 7. 静态构建要求
