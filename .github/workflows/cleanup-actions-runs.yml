@@ -31,14 +31,9 @@ jobs:
           cutoff="$(date -u -d '7 days ago' '+%Y-%m-%dT%H:%M:%SZ')"
 
           mapfile -t run_ids < <(
-            gh api --method GET --paginate \
-              -H 'Accept: application/vnd.github+json' \
-              -H 'X-GitHub-Api-Version: 2022-11-28' \
-              "/repos/${GITHUB_REPOSITORY}/actions/runs" \
-              -f status='completed' \
-              -f created="<${cutoff}" \
-              -f per_page=100 \
-              --jq '.workflow_runs[].id'
+            gh api --method GET --paginate -H 'Accept: application/vnd.github+json' \
+              -H 'X-GitHub-Api-Version: 2022-11-28' "/repos/${GITHUB_REPOSITORY}/actions/runs" -f status='completed' \
+              -f created="<${cutoff}" -f per_page=100 --jq '.workflow_runs[].id'
           )
 
           if (( ${#run_ids[@]} == 0 )); then
@@ -49,10 +44,8 @@ jobs:
           printf '准备删除 %d 条早于 %s 的已完成运行记录。\n' "${#run_ids[@]}" "${cutoff}"
 
           for run_id in "${run_ids[@]}"; do
-            gh api --method DELETE --silent \
-              -H 'Accept: application/vnd.github+json' \
-              -H 'X-GitHub-Api-Version: 2022-11-28' \
-              "/repos/${GITHUB_REPOSITORY}/actions/runs/${run_id}"
+            gh api --method DELETE --silent -H 'Accept: application/vnd.github+json' \
+              -H 'X-GitHub-Api-Version: 2022-11-28' "/repos/${GITHUB_REPOSITORY}/actions/runs/${run_id}"
           done
 
           printf '已删除 %d 条运行记录。\n' "${#run_ids[@]}"

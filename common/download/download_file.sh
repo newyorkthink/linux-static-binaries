@@ -54,12 +54,9 @@ fi
 # 使用指定下载器写入同目录临时文件，校验与原子替换共用后续流程。
 if [[ "$DOWNLOADER" == wget ]]; then
   # 只接受直达 HTTPS 文件；重定向交由既有 curl 模式处理，不允许降级到 HTTP。
-  timeout 900 wget --no-config --no-netrc --no-hsts --no-verbose \
-    --max-redirect=0 --secure-protocol=TLSv1_2 \
+  timeout 900 wget --no-config --no-netrc --no-hsts --no-verbose --max-redirect=0 --secure-protocol=TLSv1_2 \
     --tries=6 --retry-connrefused --retry-on-http-error=429,500,502,503,504 \
-    --waitretry=2 --connect-timeout=20 --read-timeout=900 \
-    "${CURL_USER_AGENT_ARGS[@]}" \
-    --output-document "$TEMP_FILE" \
+    --waitretry=2 --connect-timeout=20 --read-timeout=900 "${CURL_USER_AGENT_ARGS[@]}" --output-document "$TEMP_FILE" \
     "$URL"
 elif [[ "$DOWNLOADER" == aria2c ]]; then
   # 只读取仓库内公共下载配置，不加载个人配置。
@@ -70,26 +67,14 @@ elif [[ "$DOWNLOADER" == aria2c ]]; then
     exit 1
   }
   # 直接下载单个文件，保留临时输出、总超时与后续原摘要校验。
-  timeout 900 aria2c --conf-path "$ARIA2_CONFIG" --no-netrc \
-    --allow-overwrite=true --auto-file-renaming=false \
-    --follow-torrent=false --follow-metalink=false \
-    "${CURL_USER_AGENT_ARGS[@]}" \
-    --dir "$OUTPUT_DIR" --out "$(basename -- "$TEMP_FILE")" \
-    "$URL"
+  timeout 900 aria2c --conf-path "$ARIA2_CONFIG" --no-netrc --allow-overwrite=true --auto-file-renaming=false \
+    --follow-torrent=false --follow-metalink=false "${CURL_USER_AGENT_ARGS[@]}" \
+    --dir "$OUTPUT_DIR" --out "$(basename -- "$TEMP_FILE")" "$URL"
   rm -f -- "${TEMP_FILE}.aria2"
 else
   # 使用统一的失败、重试和超时参数下载到同目录临时文件。
-  curl --fail --location \
-    --proto '=https' \
-    --tlsv1.2 \
-    --retry 5 \
-    --retry-all-errors \
-    --retry-delay 2 \
-    --connect-timeout 20 \
-    --max-time 900 \
-    "${CURL_USER_AGENT_ARGS[@]}" \
-    --output "$TEMP_FILE" \
-    "$URL"
+  curl --fail --location --proto '=https' --tlsv1.2 --retry 5 --retry-all-errors --retry-delay 2 --connect-timeout 20 \
+    --max-time 900 "${CURL_USER_AGENT_ARGS[@]}" --output "$TEMP_FILE" "$URL"
 fi
 
 # 上游提供摘要时必须在替换正式文件前完成校验；无前缀继续按 SHA-256 处理。

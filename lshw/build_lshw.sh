@@ -34,26 +34,17 @@ bash "$SCRIPT_DIR/../common/git/clone_verified_source.sh" "$UPSTREAM_URL" "$SOUR
 ############### 静态编译 ###############
 # 按已确认的编译参数构建静态二进制。
 # 本程序专属处理：先编译 core 目标。
-make -C "$SOURCE_DIR/src" \
-    -j"$(nproc)" \
-    VERSION="$LSHW_TAG" \
-    NO_VERSION_CHECK=1 \
-    core
+make -C "$SOURCE_DIR/src" -j"$(nproc)" VERSION="$LSHW_TAG" NO_VERSION_CHECK=1 core
 
 # 本程序专属处理：随后单独构建 static 目标。
-make -C "$SOURCE_DIR/src" \
-    VERSION="$LSHW_TAG" \
-    NO_VERSION_CHECK=1 \
-    static
+make -C "$SOURCE_DIR/src" VERSION="$LSHW_TAG" NO_VERSION_CHECK=1 static
 
 ############### 整理产物 ###############
 # 将静态主程序复制到 dist 目录。
 install -Dm755 "$SOURCE_DIR/src/lshw-static" "$DIST_DIR/$ARTIFACT_NAME"
 
 # 统一检查静态 ELF，并生成实际版本与 SHA-256。
-bash "$SCRIPT_DIR/../common/build/finalize_static_binary.sh" \
-    "$DIST_DIR/$ARTIFACT_NAME" "$PACKAGE_VERSION"
+bash "$SCRIPT_DIR/../common/build/finalize_static_binary.sh" "$DIST_DIR/$ARTIFACT_NAME" "$PACKAGE_VERSION"
 
 # 输出本次构建的实际版本和上游 Commit。
-printf 'Built %s (%s, tag %s, commit %s)\n' \
-    "$ARTIFACT_NAME" "$PACKAGE_VERSION" "$LSHW_TAG" "$LSHW_COMMIT"
+printf 'Built %s (%s, tag %s, commit %s)\n' "$ARTIFACT_NAME" "$PACKAGE_VERSION" "$LSHW_TAG" "$LSHW_COMMIT"

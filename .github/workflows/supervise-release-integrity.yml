@@ -33,8 +33,7 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           set -Eeuo pipefail
-          gh api --method POST \
-            "repos/$GITHUB_REPOSITORY/actions/runs/$SOURCE_RUN_ID/rerun-failed-jobs"
+          gh api --method POST "repos/$GITHUB_REPOSITORY/actions/runs/$SOURCE_RUN_ID/rerun-failed-jobs"
           echo 'retry_started=true' >> "$GITHUB_OUTPUT"
           echo '首次手动构建存在失败 Job，已仅重新运行失败 Job 一次。'
 
@@ -47,8 +46,7 @@ jobs:
         run: |
           set -Eeuo pipefail
           jobs_json="$RUNNER_TEMP/source-run-jobs.json"
-          gh api --paginate --slurp \
-            "repos/$GITHUB_REPOSITORY/actions/runs/$SOURCE_RUN_ID/jobs?per_page=100" \
+          gh api --paginate --slurp "repos/$GITHUB_REPOSITORY/actions/runs/$SOURCE_RUN_ID/jobs?per_page=100" \
             > "$jobs_json"
           should_supervise="$(python3 - "$jobs_json" <<'PY'
           import json, sys
@@ -93,9 +91,7 @@ jobs:
           PY
           )"
 
-          gh api --paginate --slurp \
-            "repos/$GITHUB_REPOSITORY/releases/$release_id/assets?per_page=100" \
-            > "$assets_json"
+          gh api --paginate --slurp "repos/$GITHUB_REPOSITORY/releases/$release_id/assets?per_page=100" > "$assets_json"
           manifest_asset_id="$(python3 - "$assets_json" <<'PY'
           import json, sys
           pages = json.load(open(sys.argv[1], encoding='utf-8'))
@@ -105,9 +101,7 @@ jobs:
           print(rows[0]['id'])
           PY
           )"
-          gh api \
-            -H 'Accept: application/octet-stream' \
-            "repos/$GITHUB_REPOSITORY/releases/assets/$manifest_asset_id" \
+          gh api -H 'Accept: application/octet-stream' "repos/$GITHUB_REPOSITORY/releases/assets/$manifest_asset_id" \
             > "$manifest"
 
       - name: Supervise software version manifest
@@ -116,8 +110,7 @@ jobs:
         shell: bash
         run: |
           set -Eeuo pipefail
-          python3 .github/scripts/supervise_release_integrity.py \
-            --manifest "$RUNNER_TEMP/software_versions.json" \
+          python3 .github/scripts/supervise_release_integrity.py --manifest "$RUNNER_TEMP/software_versions.json" \
             --assets "$RUNNER_TEMP/latest-release-assets.json"
 
       - name: Start one repair build for a single safely mapped mismatch
@@ -160,11 +153,8 @@ jobs:
               raise SystemExit(f'无法安全自愈：构建清单中不存在唯一目标 {key}。')
           PY
 
-          gh api --method POST \
-            "repos/$GITHUB_REPOSITORY/actions/workflows/build.yml/dispatches" \
-            -f ref=main \
-            -f "inputs[target]=$repair_key" \
-            -F 'inputs[release_integrity_repair]=true'
+          gh api --method POST "repos/$GITHUB_REPOSITORY/actions/workflows/build.yml/dispatches" -f ref=main \
+            -f "inputs[target]=$repair_key" -F 'inputs[release_integrity_repair]=true'
           echo "已触发一次完整性自愈，仅重新构建：$repair_key"
 
       - name: Fail when mismatches cannot be repaired safely in one build

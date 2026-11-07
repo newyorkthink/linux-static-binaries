@@ -65,11 +65,7 @@ bash "$SCRIPT_DIR/../common/git/clone_verified_source.sh" "$TCPDUMP_URL" "$TCPDU
 (
     cd "$LIBPCAP_DIR"
     ./autogen.sh
-    CC=musl-gcc CFLAGS="$MUSL_CFLAGS" ./configure \
-        --disable-shared \
-        --without-libnl \
-        --disable-dbus \
-        --disable-rdma
+    CC=musl-gcc CFLAGS="$MUSL_CFLAGS" ./configure --disable-shared --without-libnl --disable-dbus --disable-rdma
     make -j"$(nproc)" libpcap.a
 )
 
@@ -77,10 +73,7 @@ bash "$SCRIPT_DIR/../common/git/clone_verified_source.sh" "$TCPDUMP_URL" "$TCPDU
 (
     cd "$TCPDUMP_DIR"
     ./autogen.sh
-    CC=musl-gcc CFLAGS="$MUSL_CFLAGS" LDFLAGS='-static' ./configure \
-        --without-smi \
-        --without-crypto \
-        --without-cap-ng
+    CC=musl-gcc CFLAGS="$MUSL_CFLAGS" LDFLAGS='-static' ./configure --without-smi --without-crypto --without-cap-ng
     make -j"$(nproc)" tcpdump
 )
 
@@ -91,11 +84,8 @@ install -Dm755 "$TCPDUMP_DIR/tcpdump" "$DIST_DIR/$ARTIFACT_NAME"
 strip "$DIST_DIR/$ARTIFACT_NAME"
 
 # 统一检查静态 ELF，并生成实际版本与 SHA-256。
-bash "$SCRIPT_DIR/../common/build/finalize_static_binary.sh" \
-    "$DIST_DIR/$ARTIFACT_NAME" "$PACKAGE_VERSION"
+bash "$SCRIPT_DIR/../common/build/finalize_static_binary.sh" "$DIST_DIR/$ARTIFACT_NAME" "$PACKAGE_VERSION"
 
 # 输出本次构建的实际版本和上游 Commit。
-printf 'Built %s (%s; tcpdump %s @ %s; libpcap %s @ %s)\n' \
-    "$ARTIFACT_NAME" "$PACKAGE_VERSION" \
-    "$TCPDUMP_TAG" "$TCPDUMP_COMMIT" \
-    "$LIBPCAP_TAG" "$LIBPCAP_COMMIT"
+printf 'Built %s (%s; tcpdump %s @ %s; libpcap %s @ %s)\n' "$ARTIFACT_NAME" "$PACKAGE_VERSION" \
+    "$TCPDUMP_TAG" "$TCPDUMP_COMMIT" "$LIBPCAP_TAG" "$LIBPCAP_COMMIT"

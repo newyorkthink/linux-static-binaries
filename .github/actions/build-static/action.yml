@@ -42,14 +42,7 @@ runs:
         set -Eeuo pipefail
         # 安装构建 Job 共用的静态工具链和校验工具。
         sudo apt-get update
-        sudo apt-get install -y --no-install-recommends \
-          binutils \
-          build-essential \
-          curl \
-          file \
-          git \
-          jq \
-          musl-tools
+        sudo apt-get install -y --no-install-recommends binutils build-essential curl file git jq musl-tools
 
     - name: Build static binary
       shell: bash
@@ -110,10 +103,7 @@ runs:
 
         # latest Release 不存在时按当前仓库的固定发布规则创建。
         if ! gh release view latest --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
-          gh release create latest \
-            --repo "$GITHUB_REPOSITORY" \
-            --target "$GITHUB_SHA" \
-            --title 'Latest' \
+          gh release create latest --repo "$GITHUB_REPOSITORY" --target "$GITHUB_SHA" --title 'Latest' \
             --notes 'Rolling release of portable static Linux binaries. Versions and SHA-256 checksums are tracked in software_versions.json.' \
             --latest
         fi
@@ -121,9 +111,7 @@ runs:
         # 先上传并核对当前软件的 Release 资产摘要，再进入清单更新流程。
         uploaded=false
         for attempt in $(seq 1 8); do
-          if timeout 180 gh release upload latest "$ARTIFACT_PATH" \
-            --repo "$GITHUB_REPOSITORY" \
-            --clobber; then
+          if timeout 180 gh release upload latest "$ARTIFACT_PATH" --repo "$GITHUB_REPOSITORY" --clobber; then
             uploaded=true
             break
           fi
@@ -201,8 +189,7 @@ runs:
         acquired=false
         for attempt in $(seq 1 180); do
           : > "$lock_upload_error"
-          if gh release upload latest "$lock_file" --repo "$GITHUB_REPOSITORY" \
-            >/dev/null 2>"$lock_upload_error"; then
+          if gh release upload latest "$lock_file" --repo "$GITHUB_REPOSITORY" >/dev/null 2>"$lock_upload_error"; then
             lock_asset_id=''
             for visibility_attempt in $(seq 1 15); do
               mapfile -t lock_ids < <(
@@ -230,8 +217,7 @@ runs:
 
           mapfile -t lock_rows < <(
             gh api "repos/$GITHUB_REPOSITORY/releases/$release_id/assets?per_page=100" --paginate \
-              --jq ".[] | select(.name == \"$lock_name\") | [.id,.created_at] | @tsv" \
-              || true
+              --jq ".[] | select(.name == \"$lock_name\") | [.id,.created_at] | @tsv" || true
           )
           if (( ${#lock_rows[@]} > 1 )); then
             echo "latest Release 中存在多个 $lock_name，禁止继续写入清单。" >&2
@@ -265,9 +251,7 @@ runs:
           printf '{}\n' > "$manifest"
         elif (( ${#manifest_rows[@]} == 1 )); then
           manifest_asset_id="${manifest_rows[0]%%$'\t'*}"
-          gh api \
-            -H 'Accept: application/octet-stream' \
-            "repos/$GITHUB_REPOSITORY/releases/assets/$manifest_asset_id" \
+          gh api -H 'Accept: application/octet-stream' "repos/$GITHUB_REPOSITORY/releases/assets/$manifest_asset_id" \
             > "$manifest"
         else
           echo "latest Release 中存在多个 $manifest_name，禁止覆盖。" >&2
@@ -315,10 +299,8 @@ runs:
             manifest_digest="${manifest_rows[0]#*$'\t'}"
             if [[ "$manifest_digest" == "sha256:$manifest_sha256" ]]; then
               rm -f "$verified_manifest"
-              if gh api \
-                -H 'Accept: application/octet-stream' \
-                "repos/$GITHUB_REPOSITORY/releases/assets/$manifest_asset_id" \
-                > "$verified_manifest"; then
+              if gh api -H 'Accept: application/octet-stream' \
+                "repos/$GITHUB_REPOSITORY/releases/assets/$manifest_asset_id" > "$verified_manifest"; then
                 if [[ "$(sha256sum "$verified_manifest" | awk '{print tolower($1)}')" == "$manifest_sha256" ]] && \
                   python3 - "$verified_manifest" "$SOFTWARE_KEY" "$version" "$ASSET_NAME" "$release_sha256" <<'PY'
         import json, sys

@@ -30,27 +30,10 @@ github_api_get() {
 
   # 按调用方要求保存响应，未指定文件时直接输出 JSON。
   if [[ -n "$output" ]]; then
-    curl --fail --silent --show-error --location \
-      --proto '=https' \
-      --tlsv1.2 \
-      --retry 5 \
-      --retry-all-errors \
-      --retry-delay 2 \
-      --connect-timeout 20 \
-      --max-time 120 \
-      "${headers[@]}" \
-      --output "$output" \
-      "$url"
+    curl --fail --silent --show-error --location --proto '=https' --tlsv1.2 --retry 5 --retry-all-errors \
+      --retry-delay 2 --connect-timeout 20 --max-time 120 "${headers[@]}" --output "$output" "$url"
   else
-    curl --fail --silent --show-error --location \
-      --proto '=https' \
-      --tlsv1.2 \
-      --retry 5 \
-      --retry-all-errors \
-      --retry-delay 2 \
-      --connect-timeout 20 \
-      --max-time 120 \
-      "${headers[@]}" \
-      "$url"
+    curl --fail --silent --show-error --location --proto '=https' --tlsv1.2 --retry 5 --retry-all-errors \
+      --retry-delay 2 --connect-timeout 20 --max-time 120 "${headers[@]}" "$url"
   fi
 }

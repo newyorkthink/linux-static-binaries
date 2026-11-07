@@ -72,18 +72,13 @@ PACKAGE_VERSION="$UPSTREAM_VERSION"
 ############### 静态编译 ###############
 # 按已确认的编译参数构建静态二进制。
 # 本程序专属处理：使用 C++ 和 XCB 静态链接参数构建程序。
-make -C "$SOURCE_DIR" progs \
-    CXX=g++ \
-    CXXFLAGS='-O2 -static -s' \
-    XCBLIB='-lxcb -lXau -lXdmcp'
+make -C "$SOURCE_DIR" progs CXX=g++ CXXFLAGS='-O2 -static -s' XCBLIB='-lxcb -lXau -lXdmcp'
 
 ############### 整理产物 ###############
 # 将静态主程序复制到 dist 目录。
 install -Dm755 "$SOURCE_DIR/xclipglue" "$DIST_DIR/$ARTIFACT_NAME"
 # 统一检查静态 ELF，并生成实际版本与 SHA-256。
-bash "$SCRIPT_DIR/../common/build/finalize_static_binary.sh" \
-    "$DIST_DIR/$ARTIFACT_NAME" "$PACKAGE_VERSION"
+bash "$SCRIPT_DIR/../common/build/finalize_static_binary.sh" "$DIST_DIR/$ARTIFACT_NAME" "$PACKAGE_VERSION"
 
 # 输出本次构建的实际版本和上游 Commit。
-printf 'Built %s (%s, upstream commit %s)\n' \
-    "$ARTIFACT_NAME" "$UPSTREAM_VERSION" "$UPSTREAM_COMMIT"
+printf 'Built %s (%s, upstream commit %s)\n' "$ARTIFACT_NAME" "$UPSTREAM_VERSION" "$UPSTREAM_COMMIT"

@@ -59,8 +59,7 @@ MUSL_CFLAGS="-O2 -static"
 (
     cd "$SOURCE_DIR"
     ./bootstrap
-    CC=musl-gcc CFLAGS="$MUSL_CFLAGS" CPPFLAGS="$MUSL_CPPFLAGS" LDFLAGS='-static' ./configure \
-        --enable-mpers=no \
+    CC=musl-gcc CFLAGS="$MUSL_CFLAGS" CPPFLAGS="$MUSL_CPPFLAGS" LDFLAGS='-static' ./configure --enable-mpers=no \
         --enable-stacktrace=no
     make -j"$(nproc)" CPPFLAGS="$MUSL_CPPFLAGS"
 )
@@ -69,9 +68,7 @@ MUSL_CFLAGS="-O2 -static"
 # 将静态主程序复制到 dist 目录。
 install -Dm755 "$SOURCE_DIR/src/strace" "$DIST_DIR/$ARTIFACT_NAME"
 # 统一检查静态 ELF，并生成实际版本与 SHA-256。
-bash "$SCRIPT_DIR/../common/build/finalize_static_binary.sh" \
-    "$DIST_DIR/$ARTIFACT_NAME" "$PACKAGE_VERSION"
+bash "$SCRIPT_DIR/../common/build/finalize_static_binary.sh" "$DIST_DIR/$ARTIFACT_NAME" "$PACKAGE_VERSION"
 
 # 输出本次构建的实际版本和上游 Commit。
-printf 'Built %s (%s, tag %s, commit %s)\n' \
-    "$ARTIFACT_NAME" "$PACKAGE_VERSION" "$STRACE_TAG" "$STRACE_COMMIT"
+printf 'Built %s (%s, tag %s, commit %s)\n' "$ARTIFACT_NAME" "$PACKAGE_VERSION" "$STRACE_TAG" "$STRACE_COMMIT"

@@ -79,11 +79,9 @@ case "$ARCHIVE" in
     if (( STRIP_COMPONENTS == 0 )); then
       tar -xf "$ARCHIVE" -C "$OUTPUT_DIR"
     elif [[ "$ARCHIVE" == *.tgz || "$ARCHIVE" == *.tar.gz ]]; then
-      tar -xzf "$ARCHIVE" --no-same-owner --no-same-permissions \
-        --strip-components="$STRIP_COMPONENTS" -C "$OUTPUT_DIR"
+      tar -xzf "$ARCHIVE" --no-same-owner --no-same-permissions --strip-components="$STRIP_COMPONENTS" -C "$OUTPUT_DIR"
     else
-      tar -xf "$ARCHIVE" --no-same-owner --no-same-permissions \
-        --strip-components="$STRIP_COMPONENTS" -C "$OUTPUT_DIR"
+      tar -xf "$ARCHIVE" --no-same-owner --no-same-permissions --strip-components="$STRIP_COMPONENTS" -C "$OUTPUT_DIR"
     fi
     ;;
   *)

@@ -34,20 +34,14 @@ bash "$SCRIPT_DIR/../common/git/clone_verified_source.sh" "$UPSTREAM_URL" "$SOUR
 ############### 静态编译 ###############
 # 按已确认的编译参数构建静态二进制。
 # 本程序专属处理：使用 musl-gcc 与上游原有编译选项进行静态链接。
-make -C "$SOURCE_DIR" \
-    -j"$(nproc)" \
-    CC=musl-gcc \
-    CFLAGS='-Os -Wall -std=c99' \
-    LDFLAGS='-static -s'
+make -C "$SOURCE_DIR" -j"$(nproc)" CC=musl-gcc CFLAGS='-Os -Wall -std=c99' LDFLAGS='-static -s'
 
 ############### 整理产物 ###############
 # 将静态主程序复制到 dist 目录。
 install -Dm755 "$SOURCE_DIR/microsocks" "$DIST_DIR/$ARTIFACT_NAME"
 
 # 统一检查静态 ELF，并生成实际版本与 SHA-256。
-bash "$SCRIPT_DIR/../common/build/finalize_static_binary.sh" \
-    "$DIST_DIR/$ARTIFACT_NAME" "$PACKAGE_VERSION"
+bash "$SCRIPT_DIR/../common/build/finalize_static_binary.sh" "$DIST_DIR/$ARTIFACT_NAME" "$PACKAGE_VERSION"
 
 # 输出本次构建的实际版本和上游 Commit。
-printf 'Built %s (%s, tag %s, commit %s)\n' \
-    "$ARTIFACT_NAME" "$PACKAGE_VERSION" "$MICROSOCKS_TAG" "$MICROSOCKS_COMMIT"
+printf 'Built %s (%s, tag %s, commit %s)\n' "$ARTIFACT_NAME" "$PACKAGE_VERSION" "$MICROSOCKS_TAG" "$MICROSOCKS_COMMIT"
