@@ -163,6 +163,7 @@ def main() -> None:
         if any(
             path in SHARED_BUILD_PATHS
             or path.startswith(".github/actions/build-static/")
+            or (path.startswith("common/") and not path.lower().endswith(".md"))
             for path in files
         ):
             selected.update(by_key)

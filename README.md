@@ -29,9 +29,17 @@
   workflows/build.yml                   正式构建 Workflow
   workflows/supervise-release-integrity.yml  Release 完整性监督与单次自愈
   workflows/cleanup-actions-runs.yml    七天前已完成 Actions 记录自动清理
+common/
+  github/                 GitHub API 与稳定 Release 版本解析
+  git/                    Tag、Commit 和可信源码获取
+  download/               通用 HTTPS 文件下载
+  archive/                通用归档解包
+  build/                  静态 ELF 校验与版本摘要
+  README.md               公共入口说明
+docs/
+  build-comments.md       公共中文注释标准
 <software>/
-  build.sh                软件构建脚本；动态解析最新稳定上游版本
-  version.conf            仅保存打包修订号或必要的构建环境 / 依赖固定值，不得锁目标应用版本
+  build_<软件名>.sh        软件构建脚本；动态解析最新稳定上游版本
   VERSIONS.md             本仓库打包方式历史
   README.md               软件说明
   <license files>         上游许可证文件（按软件实际情况保存在对应软件目录中）
@@ -87,12 +95,11 @@ software_versions.json
 
 每个软件按以下方式管理版本：
 
-1. `build.sh`：每次 Build 从官方上游动态解析当前最新稳定 Version / Tag，并在当次构建内解析和核对对应 Commit。
-2. `version.conf`：若存在，只保存本仓库打包修订号或确有必要固定的构建环境 / 依赖项；禁止保存目标应用 Version / Tag / Commit。
-3. `VERSIONS.md`：记录本仓库打包方式和资产结构变化，不作为目标应用版本锁定来源。
-4. `dist/version.txt`：构建时根据动态上游版本生成，仅供发布流程更新 `software_versions.json`，不提交仓库。
+1. `build_<软件名>.sh`：每次 Build 从官方上游动态解析当前最新稳定 Version / Tag，并在当次构建内解析和核对对应 Commit。
+2. `VERSIONS.md`：记录本仓库打包方式和资产结构变化，不作为目标应用版本锁定来源。
+3. `dist/version.txt`：构建时根据动态上游版本生成，仅供发布流程更新 `software_versions.json`，不提交仓库。
 
-上游发布新稳定版本后无需提交“改版本号”才能跟随；下一次正式 Build 会重新动态解析。构建方式、编译参数或 Release 资产结构发生实质变化时，再递增对应软件的打包修订号。
+上游发布新稳定版本后无需提交“改版本号”才能跟随；下一次正式 Build 会重新动态解析。`dist/version.txt` 只保存真实上游版本；构建方式、编译参数或 Release 资产结构发生变化时，继续在对应软件的 `VERSIONS.md` 中记录，不再递增打包修订号。
 
 ## 本地构建
 

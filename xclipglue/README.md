@@ -1,5 +1,7 @@
 # xclipglue
 
+构建脚本：[`build_xclipglue.sh`](./build_xclipglue.sh)。
+
 上游项目：[Simon Tatham 的 xclipglue](https://www.chiark.greenend.org.uk/~sgtatham/utils/)，[官方 Git 仓库](https://git.tartarus.org/simon/xclipglue.git)。
 
 xclipglue 在两个 X11 display 之间双向同步所选的 X selection；默认同步 `PRIMARY` 和 `CLIPBOARD`。不支持 Wayland 原生剪贴板。
@@ -8,7 +10,7 @@ xclipglue 在两个 X11 display 之间双向同步所选的 X selection；默认
 
 上游没有稳定 Git Tag。官网公布的 `xclipglue.tar.gz` 是正式发布源码包，其 `xclipglue.cpp` 和 man page 内包含本次发布版本。每次正式 Build 下载当前官网源码包，从源码读取版本并核对 man page；同时动态解析官方 Git `HEAD` 对应 Commit、Checkout 并核对实际 Commit。正式源码包的程序内容除官网注入的版本字符串以外，必须与本次官方 Git HEAD 相同，否则停止构建，避免将不匹配的源码发布出去。
 
-[`version.conf`](./version.conf) 只记录本仓库打包修订号。动态版本写入构建生成的 `dist/version.txt` 和 Release 的 `software_versions.json`，不作为下次构建输入。
+当前版本直接来自本次实际使用的官方上游源码，静态构建成功后保存至 `dist/version.txt`，不再使用独立版本配置文件。
 
 ## 构建方式
 

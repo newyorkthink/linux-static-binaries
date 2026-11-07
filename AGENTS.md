@@ -150,11 +150,11 @@ AI 永久禁止把本仓库“目标应用本身”的 Version、Tag 或 Commit 
 
 强制要求：
 
-- 禁止在 `version.conf`、`build.conf`、构建脚本、Workflow、Action 或其他仓库文件中固定目标应用的某个 Version、Tag、Commit，并把它作为后续正式 Build 的源码选择依据。
+- 禁止在构建脚本、Workflow、Action、构建清单或其他仓库文件中固定目标应用的某个 Version、Tag、Commit，并把它作为后续正式 Build 的源码选择依据。
 - 每次 GitHub Actions 正式 Build 都必须从目标应用的官方上游动态解析“当前最新稳定版本 / Tag”。GitHub / GitLab 上游优先使用官方最新稳定 Release / Release API；没有 Release API 的上游使用官方稳定 Tag、stable channel 或等价官方机制。
 - 默认必须排除 draft、prerelease、beta、nightly、insider、RC 等非稳定版本，除非该项目本身明确以对应渠道为正式目标且用户明确要求。
 - 动态得到本次稳定 Tag 后，可以并且应当在当前 Build 内解析该 Tag 对应的不可变 Commit SHA，Checkout 后再次核对实际 Commit；该 Commit 仅用于本次构建的来源校验，不得永久写回仓库成为锁定值。
-- `version.conf` 若继续存在，只能保存本仓库打包修订号或确有必要固定的构建环境 / 依赖项，不得保存目标应用本身的 Version、Tag、Commit。
+- 本仓库不使用 `version.conf` 或 `PACKAGE_REVISION`，`dist/version.txt` 只保存本次构建实际使用的上游版本。
 - 依赖项、编译工具链、容器基础镜像、GitHub Actions Commit SHA 等如果为了兼容性、安全性或可复现性确实需要固定版本，必须单独判断；“构建依赖可锁定”不得被解释成“目标应用可锁定”。
 - README、注释和 `VERSIONS.md` 不得把某个目标应用 Version / Tag / Commit 描述成当前或未来 Build 的固定输入。实际构建版本必须来自当次动态解析结果，并由 `dist/version.txt` 和 Release 的 `software_versions.json` 记录。
 
@@ -207,6 +207,14 @@ AI 永久禁止在本仓库使用 `git revert`、GitHub 网页 Revert 操作，�
 
 提交前必须使用 `file`、`readelf`、`sha256sum` 等做静态完整性检查；不得通过运行程序、连接端口等运行时冒烟测试代替该检查。
 
+## 永久规则：静态构建公共入口与统一脚本命名（不可豁免）
+
+- 软件构建入口统一命名为 `<软件目录>/build_<软件名>.sh`，名称与构建清单 `key` 一致；Workflow、监督自愈和文档引用同步调整。
+- 公共 API、下载、解包、稳定 Tag、Commit 和可信 Checkout 统一复用本仓库 `common/`，各软件独有的版本来源判断、源码比对与静态编译参数保留在自己的脚本中。
+- 静态 ELF 校验、真实上游版本与 SHA-256 输出复用公共入口，`software_versions.json` 仍由各构建 Job 的共享 Action 独立更新。
+- 通用中文注释按 [构建公共注释标准](./docs/build-comments.md) 逐字复用，不为注释整理改写已验证的专属编译命令。
+- 禁止恢复 `version.conf` 与固定 `PACKAGE_REVISION`，原有历史修订记录仅作为 `VERSIONS.md` 历史保留。
+
 ## 1. 仓库目标
 
 本仓库用于从上游源码构建可分发的 Linux 静态二进制，重点是：
@@ -225,7 +233,7 @@ AI 永久禁止在本仓库使用 `git revert`、GitHub 网页 Revert 操作，�
 - 根目录 `README.md`。
 - 本文件 `AGENTS.md`。
 - 目标软件目录中的 `README.md`。
-- 目标软件的 `version.conf`（若存在）和 `VERSIONS.md`。
+- 目标软件的 `VERSIONS.md`。
 - 目标软件构建脚本。
 - 与本次改动直接相关的 Workflow / composite Action。
 
@@ -271,8 +279,8 @@ AI 永久禁止在本仓库使用 `git revert`、GitHub 网页 Revert 操作，�
 - 旧的打包变更记录不得为了“保持简洁”而删除或覆盖。
 - `VERSIONS.md` 不得作为构建输入，也不得持久化某个目标应用 Version / Tag / Commit 作为当前锁定值。
 - 上游版本变化由每次 Build 自动跟随最新稳定版，不需要提交一次“更新固定版本”的仓库改动。
-- 构建方式、编译参数、标准运行时安装集处理或 Release 资产结构发生实质变化时，递增本仓库 `PACKAGE_REVISION` 并追加说明。
-- 构建脚本必须生成 `dist/version.txt`，内容由“本次动态解析的上游版本 + 本仓库打包修订号”组成，例如 `<upstream-version>-r<revision>`；该文件仅供构建与统一版本清单使用，不提交仓库，也不作为独立 Release 资产发布。
+- 构建方式、编译参数、标准运行时安装集处理或 Release 资产结构发生实质变化时，在对应 `VERSIONS.md` 追加说明，不再维护打包修订号。
+- 构建脚本必须在最终静态 ELF 生成后写入 `dist/version.txt`，只记录本次实际构建的上游版本；该文件供构建与统一版本清单使用，不提交仓库，也不作为独立 Release 资产发布。
 
 ## 7. 静态构建要求
 

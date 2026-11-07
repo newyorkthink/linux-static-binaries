@@ -44,8 +44,10 @@ runs:
         sudo apt-get install -y --no-install-recommends \
           binutils \
           build-essential \
+          curl \
           file \
           git \
+          jq \
           musl-tools
 
     - name: Build static binary

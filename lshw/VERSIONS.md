@@ -7,3 +7,8 @@
 | `r1` | 首个完整静态 CLI 运行时安装集方案；使用上游 `make static` 构建 x86_64 静态 ELF，并按上游默认 `make install` 的 CLI 安装集保留 `lshw`、man page、硬件 ID 数据文件和 ca / es / fr 翻译，发布为 `lshw.tar.xz`。上游可选 GTK GUI 使用独立 `install-gui` 目标，不属于默认 CLI 安装集。 |
 
 目标应用 Version / Tag / Commit 不在仓库中持久化为锁定值；每次 Build 动态解析最新稳定 `B.<数字>.<数字>` 系列 Tag。构建方式、编译参数、标准运行时安装集处理或 Release 资产结构发生实质变化时递增 `PACKAGE_REVISION`，并在本文件追加打包变更记录。
+
+## 现行版本管理
+
+- 构建成功后，使用本次从官方上游动态获得的实际软件版本生成 `dist/version.txt`，不再使用独立 `version.conf`、`PACKAGE_REVISION` 或 `-r` 版本后缀。
+- 以上 `rN` 编号与修订号说明保留为历史记录；后续构建方式的变化继续追加在本文件中，不改写旧记录。

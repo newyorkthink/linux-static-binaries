@@ -1,5 +1,7 @@
 # strace
 
+构建脚本：[`build_strace.sh`](./build_strace.sh)。
+
 上游项目：[strace/strace](https://github.com/strace/strace)。
 
 `strace` 是 Linux 系统调用跟踪工具，用来看一个进程打开了哪些文件、调用了哪些系统调用。
@@ -12,7 +14,7 @@ strace 以官方 Git Tag `v<数字版本>` 发布稳定源码。本仓库每次 
 2. Checkout 该 Tag，并核对实际 Commit SHA。
 3. 动态版本只写入构建生成的 `dist/version.txt` 和 Release `software_versions.json`，不会写回仓库成为后续版本锁定值。
 
-[`version.conf`](./version.conf) 只保存本仓库打包修订号。
+当前版本直接来自本次实际使用的官方上游源码，静态构建成功后保存至 `dist/version.txt`，不再使用独立版本配置文件。
 
 ## 构建方式
 

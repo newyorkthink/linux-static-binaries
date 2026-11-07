@@ -1,5 +1,7 @@
 # lshw
 
+构建脚本：[`build_lshw.sh`](./build_lshw.sh)。
+
 上游项目：[lyonel/lshw](https://github.com/lyonel/lshw)
 
 lshw（Hardware Lister）用于读取并整理 Linux 主机的硬件配置信息，可输出文本、JSON、XML、HTML、businfo 等格式。
@@ -15,7 +17,7 @@ lshw（Hardware Lister）用于读取并整理 Linux 主机的硬件配置信息
 3. 在本次 Build 内解析该 Tag 对应的不可变 Commit SHA，Checkout 后再次核对实际 Commit。
 4. 最终版本只写入构建生成的 `dist/version.txt` 和 Release 的 `software_versions.json`；Version / Tag / Commit 不回写仓库作为下次构建锁定值。
 
-[`version.conf`](./version.conf) 只保存本仓库打包修订号。
+当前版本直接来自本次实际使用的官方上游源码，静态构建成功后保存至 `dist/version.txt`，不再使用独立版本配置文件。
 
 ## 构建方式
 

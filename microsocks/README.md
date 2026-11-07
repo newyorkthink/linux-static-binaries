@@ -1,5 +1,7 @@
 # MicroSocks
 
+构建脚本：[`build_microsocks.sh`](./build_microsocks.sh)。
+
 上游项目：[rofl0r/microsocks](https://github.com/rofl0r/microsocks)
 
 MicroSocks 是一个轻量级多线程 SOCKS5 服务端。上游支持 IPv4、IPv6、DNS 和 SOCKS5 用户名 / 密码认证；当前不支持 UDP。
@@ -11,9 +13,9 @@ MicroSocks 是一个轻量级多线程 SOCKS5 服务端。上游支持 IPv4、IP
 1. 读取 MicroSocks 官方 GitHub `releases/latest`。
 2. 拒绝 draft / prerelease，并只接受 `v<数字版本>` 形式的稳定 Release Tag。
 3. 在本次 Build 内动态解析该 Tag 对应的 Commit SHA，Checkout 后再次核对实际 Commit。
-4. 仅把本次动态解析出的上游版本与本仓库打包修订号组合后写入 `dist/version.txt` 和 Release 的 `software_versions.json`；Version / Tag / Commit 不回写仓库作为下次 Build 的锁定值。
+4. 仅将本次动态解析出的上游版本写入 `dist/version.txt` 和 Release 的 `software_versions.json`；Version / Tag / Commit 不回写仓库作为下次 Build 的锁定值。
 
-[`version.conf`](./version.conf) 只保存本仓库打包修订号，不保存 MicroSocks Version / Tag / Commit。
+当前版本直接来自本次实际使用的官方上游源码，静态构建成功后保存至 `dist/version.txt`，不再使用独立版本配置文件。
 
 ## 构建方式
 

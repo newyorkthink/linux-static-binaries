@@ -1,5 +1,7 @@
 # tree
 
+构建脚本：[`build_tree.sh`](./build_tree.sh)。
+
 上游主发布站：[Old Man Programmer - tree](https://oldmanprogrammer.net/source.php?dir=projects/tree)，官方备份 Git 仓库：[Old-Man-Programmer/tree](https://github.com/Old-Man-Programmer/tree)。
 
 `tree` 是 Steve Baker 维护的目录树命令行工具，用缩进树形结构显示目录内容。
@@ -14,7 +16,7 @@
 4. 对 Makefile 和全部实际参与 `tree` 编译的 C / 头文件逐一比较官方 tarball 与同版本 Git Tag；不一致时停止构建。
 5. 动态版本只写入构建生成的 `dist/version.txt` 和 Release `software_versions.json`，不会写回仓库成为后续版本锁定值。
 
-[`version.conf`](./version.conf) 只保存本仓库打包修订号。
+当前版本直接来自本次实际使用的官方上游源码，静态构建成功后保存至 `dist/version.txt`，不再使用独立版本配置文件。
 
 ## 构建方式
 

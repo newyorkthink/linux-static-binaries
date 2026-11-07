@@ -1,5 +1,7 @@
 # tcpdump
 
+构建脚本：[`build_tcpdump.sh`](./build_tcpdump.sh)。
+
 上游项目：
 
 - tcpdump：[the-tcpdump-group/tcpdump](https://github.com/the-tcpdump-group/tcpdump)
@@ -16,7 +18,7 @@ tcpdump 与 libpcap 的 GitHub 仓库均以稳定 Git Tag 发布正式源码。�
 3. 分别解析 Tag 对应的不可变 Commit SHA，Checkout 后再次核对实际 Commit。
 4. tcpdump 的动态版本用于生成 `dist/version.txt`；任何目标版本、Tag 或 Commit 都不会写回仓库作为后续 Build 锁定值。
 
-[`version.conf`](./version.conf) 只保存本仓库打包修订号。
+当前版本直接来自本次实际使用的官方上游源码，静态构建成功后保存至 `dist/version.txt`，不再使用独立版本配置文件。
 
 ## 静态构建
 

@@ -141,8 +141,8 @@ jobs:
           PY
           )"
 
-          [[ -f "$repair_key/build.sh" ]] || {
-            echo "无法安全自愈：不存在 $repair_key/build.sh。" >&2
+          [[ -f "$repair_key/build_$repair_key.sh" ]] || {
+            echo "无法安全自愈：不存在 $repair_key/build_$repair_key.sh。" >&2
             exit 1
           }
           python3 - .github/static-binaries.json "$repair_key" <<'PY'
@@ -154,6 +154,7 @@ jobs:
               if package.get('key') == key
               and package.get('software_key') == key
               and package.get('dir') == key
+              and package.get('build_script') == f'{key}/build_{key}.sh'
           ]
           if len(matches) != 1:
               raise SystemExit(f'无法安全自愈：构建清单中不存在唯一目标 {key}。')
