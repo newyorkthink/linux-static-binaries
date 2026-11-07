@@ -14,7 +14,7 @@ xclipglue 在两个 X11 display 之间双向同步所选的 X selection；默认
 
 ## 构建方式
 
-上游 `make progs` 只编译 C++ 主程序，依赖 XCB。正式构建在 GitHub-hosted Ubuntu runner 上调用 Docker，使用 Alpine Linux 3.24 的 musl C++ 工具链，以及 Alpine 提供的静态 XCB、Xau、Xdmcp 和相关依赖库；不混用 Ubuntu 上基于 glibc 的 XCB 库。保持上游 `make progs`、`-O2 -static -s` 和原有源码版本校验流程。构建后仍由公共入口通过 `file` 和 `readelf` 检查 ELF interpreter 与动态 `NEEDED` 项，并生成版本及 SHA-256。此方式避免静态 glibc `getaddrinfo` 的 NSS 兼容性警告，保留 X11 的 Unix socket 和 TCP 连接能力；远程连接仍取决于实际网络、名称解析和 X11 认证配置。本地执行构建脚本也需要 Docker。
+上游 `make progs` 只编译 C++ 主程序，依赖 XCB。正式构建使用 Alpine Linux 3.24 容器内的 musl C++ 工具链和 `libxcb-static`。由于 Alpine 的 Xau、Xdmcp 开发包没有提供所需静态库，构建脚本复用仓库公共下载与解包入口，获取并校验 X.Org 官方 `libXau`、`libXdmcp` 源码，再在容器内编译成静态库。软件专属依赖构建不进入公共函数，也不混用 Ubuntu 的 glibc 库。保留上游 `make progs`、`-O2 -static -s` 和原有源码版本校验；最终仍通过公共入口验证 ELF 无动态解释器或动态 `NEEDED` 项，并生成版本及 SHA-256。采用 musl 静态链接可避免 glibc `getaddrinfo` 的 NSS 兼容性警告；X11 Unix socket、TCP 连通性及远程认证仍取决于实际运行环境。本地执行构建脚本需要 Docker。
 
 上游默认 `make install` 还安装 `xclipglue.1` man page，仅用于文档；`make progs` 不需要 `halibut`，主程序无需 man page 即可运行。因此 Release 只发布 `xclipglue` 单文件。虽然链接静态，运行时仍需可访问的 X11 display、相应认证和 X server；远程模式需要用户自行提供远程启动命令。
 

@@ -71,16 +71,37 @@ PACKAGE_VERSION="$UPSTREAM_VERSION"
 
 ############### 静态编译 ###############
 # 按已确认的编译参数构建静态二进制。
-# 本程序专属处理：在 Alpine musl 环境内编译 C++ 主程序，避免静态 glibc 的 getaddrinfo 兼容性问题。
+# 本程序专属处理：Alpine 未提供 Xau、Xdmcp 静态库，使用 X.Org 官方源码补齐并核对摘要。
+bash "$SCRIPT_DIR/../common/download/download_file.sh" \
+    'https://www.x.org/releases/individual/lib/libXau-1.0.12.tar.xz' "$WORK_DIR/libXau-1.0.12.tar.xz" \
+    '74d0e4dfa3d39ad8939e99bda37f5967aba528211076828464d2777d477fc0fb'
+bash "$SCRIPT_DIR/../common/download/download_file.sh" \
+    'https://www.x.org/releases/individual/lib/libXdmcp-1.1.5.tar.xz' "$WORK_DIR/libXdmcp-1.1.5.tar.xz" \
+    'd8a5222828c3adab70adf69a5583f1d32eb5ece04304f7f8392b6a353aa2228c'
+# 解包已校验的 X.Org 官方源码，保留当前软件独立构建目录。
+bash "$SCRIPT_DIR/../common/archive/extract_archive.sh" "$WORK_DIR/libXau-1.0.12.tar.xz" "$WORK_DIR/libXau-1.0.12" 1
+bash "$SCRIPT_DIR/../common/archive/extract_archive.sh" "$WORK_DIR/libXdmcp-1.1.5.tar.xz" "$WORK_DIR/libXdmcp-1.1.5" 1
+
+# 本程序专属处理：在 musl 环境内补齐静态 X11 依赖，再构建 xclipglue。
 command -v docker >/dev/null 2>&1 || { echo '错误：xclipglue 的 musl 静态构建需要 Docker。' >&2; exit 1; }
-docker run --rm --platform linux/amd64 --volume "$SOURCE_DIR:/src" --workdir /src alpine:3.24 sh -euc '
-    # 安装 musl C++ 工具链与同一 ABI 的 XCB、Xau、Xdmcp 静态库。
+docker run --rm --platform linux/amd64 --volume "$WORK_DIR:/work" --workdir /work/source alpine:3.24 sh -euc '
+    # 安装 musl 工具链、XCB 静态库及 X.Org 依赖头文件。
     apk add --no-cache build-base pkgconf libxcb-static libxau-dev libxdmcp-dev libbsd-static libmd-dev
-    # 检查静态库确实可用，避免错误地链接容器中的动态库。
+    # 分别构建缺失的静态 Xau、Xdmcp 库；不修改公共工具或其他程序。
+    for dependency in /work/libXau-1.0.12 /work/libXdmcp-1.1.5; do
+        (
+            cd "$dependency"
+            ./configure --prefix=/usr/local --disable-shared --enable-static
+            make -j"$(nproc)"
+            make install
+        )
+    done
+    # 优先使用本次构建的静态依赖，禁止退回到共享库。
+    export PKG_CONFIG_PATH="/usr/local/lib/pkgconfig${PKG_CONFIG_PATH:+:$PKG_CONFIG_PATH}"
     test -s /usr/lib/libxcb.a
-    test -s /usr/lib/libXau.a
-    test -s /usr/lib/libXdmcp.a
-    # 沿用上游 progs 目标和静态编译参数，并解析静态 XCB 的完整链接依赖。
+    test -s /usr/local/lib/libXau.a
+    test -s /usr/local/lib/libXdmcp.a
+    # 保留上游 make progs 目标，并使用完整静态链接参数。
     make progs CXX=g++ CXXFLAGS="-O2 -static -s" XCBLIB="$(pkg-config --static --libs xcb xau xdmcp libbsd)"
 '
 
