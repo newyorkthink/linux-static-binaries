@@ -15,6 +15,7 @@ on:
         type: choice
         options:
           - all
+          - deborphan
           - lshw
           - microsocks
           - sshpass
@@ -35,6 +36,8 @@ on:
   push:
     branches: [main]
     paths:
+      - 'deborphan/**'
+      - '!deborphan/**/*.md'
       - 'lshw/**'
       - '!lshw/**/*.md'
       - 'microsocks/**'

@@ -44,6 +44,7 @@
 
 `# 本程序专属处理：` 后直接描述本软件真实执行的操作，不重复公共注释，也不把专属参数强加给其他软件。
 
+- `deborphan`：核对 Debian 源码包与 salsa Tag，使用 musl 静态链接并固定 `/var` 状态路径。
 - `lshw`：先构建 core，再构建 static。
 - `microsocks`：仅接受最新正式 Release 的稳定 Tag，并保留 musl 编译参数。
 - `strace`：准备 Linux UAPI 头文件，保留 bootstrap、mpers 和 stacktrace 配置。

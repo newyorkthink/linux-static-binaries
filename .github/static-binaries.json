@@ -2,6 +2,20 @@
   "description": "静态二进制构建清单，由 build.yml 和 plan_static_jobs.py 共同使用。",
   "packages": [
     {
+      "key": "deborphan",
+      "dir": "deborphan",
+      "software_key": "deborphan",
+      "build_script": "deborphan/build_deborphan.sh",
+      "artifact_path": "deborphan/dist/deborphan",
+      "checksum_path": "deborphan/dist/deborphan.sha256",
+      "version_file": "deborphan/dist/version.txt",
+      "license_file": "deborphan/COPYING",
+      "asset_name": "deborphan",
+      "legacy_asset_names": "",
+      "apt_packages": "autoconf automake autopoint gettext",
+      "timeout_minutes": 15
+    },
+    {
       "key": "lshw",
       "dir": "lshw",
       "software_key": "lshw",
