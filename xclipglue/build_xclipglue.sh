@@ -97,7 +97,7 @@ bash "$SCRIPT_DIR/../common/archive/extract_archive.sh" "$WORK_DIR/libxcb.tar.xz
 ZIG="$ZIG_DIR/zig"
 export CC="$ZIG cc -target x86_64-linux-musl"
 export CXX="$ZIG c++ -target x86_64-linux-musl"
-export PKG_CONFIG_PATH="$MUSL_PREFIX/lib/pkgconfig${PKG_CONFIG_PATH:+:$PKG_CONFIG_PATH}"
+export PKG_CONFIG_PATH="$MUSL_PREFIX/lib/pkgconfig:$MUSL_PREFIX/share/pkgconfig${PKG_CONFIG_PATH:+:$PKG_CONFIG_PATH}"
 export CPPFLAGS="-I$MUSL_PREFIX/include -idirafter /usr/include"
 export LDFLAGS="-L$MUSL_PREFIX/lib"
 
