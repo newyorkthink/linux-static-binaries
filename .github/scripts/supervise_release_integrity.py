@@ -45,6 +45,27 @@ def main() -> None:
     if not isinstance(asset_pages, list):
         raise SystemExit("Release Assets 列表格式无效。")
 
+    # 以本仓库唯一构建清单为准，检查版本清单没有遗漏任何正式软件。
+    catalog = read_json(Path(".github/static-binaries.json"), "静态构建清单")
+    packages = catalog.get("packages") if isinstance(catalog, dict) else None
+    if not isinstance(packages, list) or not packages:
+        raise SystemExit("静态构建清单缺少有效的软件条目。")
+    expected_assets: dict[str, str] = {}
+    seen_asset_names: set[str] = set()
+    for package in packages:
+        if not isinstance(package, dict):
+            raise SystemExit("静态构建清单包含无效的软件条目。")
+        key = package.get("key")
+        asset_name = package.get("asset_name")
+        if not isinstance(key, str) or not SOFTWARE_KEY_RE.fullmatch(key):
+            raise SystemExit("静态构建清单包含无效的软件 key。")
+        if not isinstance(asset_name, str) or not asset_name or asset_name == "software_versions.json":
+            raise SystemExit(f"静态构建清单中的资产名称无效：{key}")
+        if key in expected_assets or asset_name in seen_asset_names:
+            raise SystemExit(f"静态构建清单存在重复软件或资产：{key}")
+        expected_assets[key] = asset_name
+        seen_asset_names.add(asset_name)
+
     # 兼容 GitHub API 返回的单页和多页资产列表。
     if asset_pages and all(isinstance(page, list) for page in asset_pages):
         assets = [asset for page in asset_pages for asset in page]
@@ -62,12 +83,32 @@ def main() -> None:
 
     mismatches: list[dict[str, str]] = []
 
+    # 遗漏单个条目时由既有监督工作流决定是否安全重建；多个遗漏不自动扩展构建范围。
+    for expected_key, expected_asset in sorted(expected_assets.items()):
+        if expected_key not in manifest:
+            mismatches.append(
+                {
+                    "software_key": expected_key,
+                    "asset": expected_asset,
+                    "reason": "software_versions.json 缺少构建清单中的软件条目",
+                    "manifest_sha256": "",
+                    "release_digest": "",
+                }
+            )
+
     # 检查每个软件条目的名称、唯一资产和 SHA-256。
     for software_key, entry in sorted(manifest.items()):
         reasons: list[str] = []
         asset_name = entry.get("asset") if isinstance(entry, dict) else None
         manifest_sha256 = entry.get("sha256") if isinstance(entry, dict) else None
+        manifest_version = entry.get("version") if isinstance(entry, dict) else None
 
+        if software_key not in expected_assets:
+            reasons.append("软件不在当前构建清单中")
+        elif asset_name != expected_assets[software_key]:
+            reasons.append("asset 与构建清单中的资产名不一致")
+        if not isinstance(manifest_version, str) or not manifest_version.strip():
+            reasons.append("version 为空或类型无效")
         if not isinstance(software_key, str) or not SOFTWARE_KEY_RE.fullmatch(software_key):
             reasons.append("software_key 格式无效")
         if not isinstance(entry, dict):

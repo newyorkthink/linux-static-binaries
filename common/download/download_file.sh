@@ -59,15 +59,9 @@ if [[ "$DOWNLOADER" == wget ]]; then
     --waitretry=2 --connect-timeout=20 --read-timeout=900 "${CURL_USER_AGENT_ARGS[@]}" --output-document "$TEMP_FILE" \
     "$URL"
 elif [[ "$DOWNLOADER" == aria2c ]]; then
-  # 只读取仓库内公共下载配置，不加载个人配置。
-  SCRIPT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
-  ARIA2_CONFIG="$SCRIPT_DIR/../config/download/aria2.conf"
-  [[ -f "$ARIA2_CONFIG" && -r "$ARIA2_CONFIG" ]] || {
-    echo "错误：缺少可读的公共 aria2 下载配置：$ARIA2_CONFIG" >&2
-    exit 1
-  }
+  # 不读取本机或用户的 aria2 配置，只使用当前调用明确指定的下载选项。
   # 直接下载单个文件，保留临时输出、总超时与后续原摘要校验。
-  timeout 900 aria2c --conf-path "$ARIA2_CONFIG" --no-netrc --allow-overwrite=true --auto-file-renaming=false \
+  timeout 900 aria2c --no-conf --no-netrc --allow-overwrite=true --auto-file-renaming=false \
     --follow-torrent=false --follow-metalink=false "${CURL_USER_AGENT_ARGS[@]}" \
     --dir "$OUTPUT_DIR" --out "$(basename -- "$TEMP_FILE")" "$URL"
   rm -f -- "${TEMP_FILE}.aria2"
