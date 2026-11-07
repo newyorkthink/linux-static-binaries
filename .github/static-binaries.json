@@ -30,6 +30,20 @@
       "timeout_minutes": 15
     },
     {
+      "key": "sshpass",
+      "dir": "sshpass",
+      "software_key": "sshpass",
+      "build_script": "sshpass/build_sshpass.sh",
+      "artifact_path": "sshpass/dist/sshpass",
+      "checksum_path": "sshpass/dist/sshpass.sha256",
+      "version_file": "sshpass/dist/version.txt",
+      "license_file": "sshpass/COPYING",
+      "asset_name": "sshpass",
+      "legacy_asset_names": "",
+      "apt_packages": "autoconf automake",
+      "timeout_minutes": 15
+    },
+    {
       "key": "strace",
       "dir": "strace",
       "software_key": "strace",

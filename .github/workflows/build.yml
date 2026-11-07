@@ -17,6 +17,7 @@ on:
           - all
           - lshw
           - microsocks
+          - sshpass
           - strace
           - tcpdump
           - tree
@@ -38,6 +39,8 @@ on:
       - '!lshw/**/*.md'
       - 'microsocks/**'
       - '!microsocks/**/*.md'
+      - 'sshpass/**'
+      - '!sshpass/**/*.md'
       - 'strace/**'
       - '!strace/**/*.md'
       - 'tcpdump/**'
