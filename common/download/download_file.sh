@@ -7,12 +7,13 @@ EXPECTED_CHECKSUM="${3:-}"
 USER_AGENT="${4:-}"
 DOWNLOADER="${5:-curl}"
 
-# 只有显式选择时使用其他下载器，原有调用继续使用 curl。
+# 检查下载器类型；未指定时继续使用 curl。
 [[ "$DOWNLOADER" == curl || "$DOWNLOADER" == wget || "$DOWNLOADER" == aria2c ]] || {
   echo "错误：下载器只能为 curl、wget 或 aria2c。" >&2
   exit 2
 }
 
+# 校验本次下载的 HTTPS 地址及输出文件参数。
 [[ -n "$URL" && -n "$OUTPUT" ]] || {
   echo "用法：$0 <HTTPS URL> <输出文件> [SHA-256、sha512:<摘要> 或 blake2b:<摘要>] [User-Agent] [curl|wget|aria2c]" >&2
   exit 1
@@ -32,6 +33,7 @@ OUTPUT_DIR="$(dirname -- "$OUTPUT")"
 mkdir -p "$OUTPUT_DIR"
 OUTPUT_DIR="$(cd -- "$OUTPUT_DIR" && pwd)"
 OUTPUT="$OUTPUT_DIR/$(basename -- "$OUTPUT")"
+# 在目标目录创建临时文件，避免下载失败时覆盖现有文件。
 TEMP_FILE="$(mktemp "${OUTPUT}.part.XXXXXX")"
 
 # 下载失败时删除未完成的临时文件，不覆盖原有完整文件。

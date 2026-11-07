@@ -19,14 +19,17 @@ SHARED_BUILD_PATHS = {
 }
 
 
+# 将软件名称标准化以进行模糊匹配。
 def normalize_search(value: str) -> str:
     return re.sub(r"[^a-z0-9]", "", value.lower())
 
 
+# 检查本次指定的 Git 记录是否存在。
 def git_ok(args: list[str]) -> bool:
     return subprocess.call(args, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL) == 0
 
 
+# 读取指定 Git 命令的文本输出。
 def git_out(args: list[str]) -> str:
     return subprocess.check_output(args, text=True)
 
@@ -111,6 +114,7 @@ def resolve_search(catalog: list[dict], query_raw: str) -> str:
     raise SystemExit(1)
 
 
+# 比较 Push 前后的提交，确定本次变更的文件。
 def changed_files(before_sha: str, after_sha: str) -> list[str]:
     missing_before = (
         not before_sha
@@ -124,6 +128,7 @@ def changed_files(before_sha: str, after_sha: str) -> list[str]:
     return [line for line in output.splitlines() if line]
 
 
+# 根据当前触发事件规划独立的软件构建 Job。
 def main() -> None:
     catalog = load_catalog()
     by_key = {package["key"]: package for package in catalog}
@@ -142,6 +147,7 @@ def main() -> None:
     if release_integrity_repair and event_name != "workflow_dispatch":
         raise SystemExit("Release 完整性自愈只能通过 workflow_dispatch 运行。")
 
+    # 手动构建优先使用指定目标，模糊输入必须唯一匹配。
     if event_name == "workflow_dispatch":
         if not release_integrity_repair and target_search.strip():
             selected_target = resolve_search(catalog, target_search)
@@ -177,6 +183,7 @@ def main() -> None:
     else:
         raise SystemExit(f"不支持的触发事件：{event_name}")
 
+    # 仅输出本次选中的软件，并保持清单规定的顺序。
     selected_packages = sorted(
         (package for package in catalog if package["key"] in selected),
         key=lambda package: package["key"],

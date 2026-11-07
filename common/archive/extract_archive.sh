@@ -1,11 +1,12 @@
 #!/usr/bin/env bash
 set -Eeuo pipefail
 
+# 读取归档路径、目标目录和可选解包层数。
 ARCHIVE="${1:-}"
 OUTPUT_DIR="${2:-}"
 STRIP_COMPONENTS="${3:-0}"
 
-# 第三参数仅用于 tar 源码包，控制去掉的外层目录层数。
+# 本仓库兼容处理：允许 tar 源码包指定去除外层目录层数。
 (( $# >= 2 && $# <= 3 )) && [[ "$STRIP_COMPONENTS" =~ ^[0-9]+$ ]] || {
   echo '用法：extract_archive.sh <归档文件> <输出目录> [tar 去除层数]' >&2
   exit 2
@@ -25,6 +26,7 @@ if (( STRIP_COMPONENTS > 0 )); then
     *) echo '错误：仅 tar 归档允许去除目录层数。' >&2; exit 2 ;;
   esac
 fi
+# 创建本次解包的目标目录。
 mkdir -p "$OUTPUT_DIR"
 
 # 归档格式判断和解包命令统一保留在公共入口；项目脚本只传入文件与目标目录。

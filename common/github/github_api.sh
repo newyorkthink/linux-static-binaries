@@ -10,11 +10,13 @@ github_api_get() {
     -H 'X-GitHub-Api-Version: 2022-11-28'
   )
 
+  # 仅允许访问 GitHub 官方 HTTPS API。
   [[ "$url" == https://api.github.com/* ]] || {
     echo "错误：只允许读取 GitHub API HTTPS 地址：$url" >&2
     return 1
   }
 
+  # 优先使用现有 Actions Token，再尝试 Git Checkout 的认证头。
   if [[ -n "${GITHUB_TOKEN:-}" ]]; then
     headers+=( -H "Authorization: Bearer $GITHUB_TOKEN" )
   elif [[ -n "${GH_TOKEN:-}" ]]; then
@@ -26,6 +28,7 @@ github_api_get() {
     fi
   fi
 
+  # 按调用方要求保存响应，未指定文件时直接输出 JSON。
   if [[ -n "$output" ]]; then
     curl --fail --silent --show-error --location \
       --proto '=https' \

@@ -40,6 +40,7 @@ runs:
       shell: bash
       run: |
         set -Eeuo pipefail
+        # 安装构建 Job 共用的静态工具链和校验工具。
         sudo apt-get update
         sudo apt-get install -y --no-install-recommends \
           binutils \
@@ -56,6 +57,7 @@ runs:
         BUILD_SCRIPT: ${{ inputs.build_script }}
       run: |
         set -Eeuo pipefail
+        # 执行构建清单指定的软件构建脚本。
         chmod +x "$BUILD_SCRIPT"
         "$BUILD_SCRIPT"
 
@@ -90,6 +92,7 @@ runs:
           exit 1
         }
 
+        # 确认本次构建得到的上游版本不为空。
         version="$(tr -d '\r\n' < "$VERSION_FILE")"
         [[ -n "$version" ]] || { echo '版本内容为空。' >&2; exit 1; }
 
@@ -105,6 +108,7 @@ runs:
       run: |
         set -Eeuo pipefail
 
+        # latest Release 不存在时按当前仓库的固定发布规则创建。
         if ! gh release view latest --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
           gh release create latest \
             --repo "$GITHUB_REPOSITORY" \
@@ -130,9 +134,11 @@ runs:
           sleep $((attempt * 2))
         done
 
+        # 发布后读取本次实际版本，并计算二进制的 SHA-256。
         version="$(tr -d '\r\n' < "$VERSION_FILE")"
         local_sha256="$(sha256sum "$ARTIFACT_PATH" | awk '{print tolower($1)}')"
 
+        # 读取 Release 资产状态，校验上传后的二进制 digest。
         release_json="$RUNNER_TEMP/latest-release-$SOFTWARE_KEY.json"
         matched=false
         for attempt in $(seq 1 12); do
@@ -183,6 +189,7 @@ runs:
 
         lock_asset_id=''
         lock_owned=false
+        # 构建中断时只清理由当前 Job 持有的版本清单锁。
         cleanup_lock() {
           if [[ "$lock_owned" == true && -n "$lock_asset_id" ]]; then
             gh api --method DELETE "repos/$GITHUB_REPOSITORY/releases/assets/$lock_asset_id" >/dev/null 2>&1 || true
@@ -190,6 +197,7 @@ runs:
         }
         trap cleanup_lock EXIT
 
+        # 获取唯一版本清单写锁，异常或超时则停止写入。
         acquired=false
         for attempt in $(seq 1 180); do
           : > "$lock_upload_error"
@@ -248,6 +256,7 @@ runs:
           exit 1
         }
 
+        # 读取唯一版本清单资产，保留其他软件记录。
         mapfile -t manifest_rows < <(
           gh api "repos/$GITHUB_REPOSITORY/releases/$release_id/assets?per_page=100" --paginate \
             --jq ".[] | select(.name == \"$manifest_name\") | [.id, (.digest // \"\")] | @tsv"
@@ -279,6 +288,7 @@ runs:
             f.write('\n')
         PY
 
+        # 计算新清单摘要，并按固定资产名更新 Release。
         manifest_sha256="$(sha256sum "$manifest" | awk '{print tolower($1)}')"
         manifest_uploaded=false
         for attempt in $(seq 1 8); do
@@ -331,6 +341,7 @@ runs:
           exit 1
         }
 
+        # 校验清单成功后释放本次构建持有的写锁。
         gh api --method DELETE "repos/$GITHUB_REPOSITORY/releases/assets/$lock_asset_id" >/dev/null
         lock_owned=false
         trap - EXIT
@@ -343,6 +354,7 @@ runs:
           fi
         done
 
+        # 仅在发布成功后处理清单声明的旧资产名称。
         if [[ -n "$LEGACY_ASSET_NAMES" ]]; then
           while IFS= read -r legacy_name; do
             [[ -n "$legacy_name" ]] || continue

@@ -13,6 +13,7 @@ SHA256_RE = re.compile(r"[0-9a-fA-F]{64}")
 SOFTWARE_KEY_RE = re.compile(r"[A-Za-z0-9._-]+")
 
 
+# 读取并检查本次监督使用的 JSON 文件。
 def read_json(path: Path, label: str) -> object:
     try:
         return json.loads(path.read_text(encoding="utf-8"))
@@ -20,6 +21,7 @@ def read_json(path: Path, label: str) -> object:
         raise SystemExit(f"无法读取有效的 {label}：{exc}") from exc
 
 
+# 将监督结论写入当前 GitHub Actions Step Output。
 def write_output(name: str, value: str) -> None:
     output = os.environ.get("GITHUB_OUTPUT")
     if not output:
@@ -28,6 +30,7 @@ def write_output(name: str, value: str) -> None:
         fh.write(f"{name}={value}\n")
 
 
+# 比较版本清单与 Release 资产的 SHA-256 digest。
 def main() -> None:
     parser = argparse.ArgumentParser()
     parser.add_argument("--manifest", type=Path, required=True)
@@ -42,6 +45,7 @@ def main() -> None:
     if not isinstance(asset_pages, list):
         raise SystemExit("Release Assets 列表格式无效。")
 
+    # 兼容 GitHub API 返回的单页和多页资产列表。
     if asset_pages and all(isinstance(page, list) for page in asset_pages):
         assets = [asset for page in asset_pages for asset in page]
     else:
@@ -58,6 +62,7 @@ def main() -> None:
 
     mismatches: list[dict[str, str]] = []
 
+    # 检查每个软件条目的名称、唯一资产和 SHA-256。
     for software_key, entry in sorted(manifest.items()):
         reasons: list[str] = []
         asset_name = entry.get("asset") if isinstance(entry, dict) else None
@@ -110,6 +115,7 @@ def main() -> None:
     write_output("mismatch_count", str(len(mismatches)))
     write_output("mismatch_keys", json.dumps(keys, ensure_ascii=False, separators=(",", ":")))
 
+    # 将完整性检查结果输出到 Actions 日志。
     if not mismatches:
         print(f"software_versions.json 的 {len(manifest)} 个条目全部与 Release Asset digest 一致。")
     else:
@@ -121,6 +127,7 @@ def main() -> None:
                 f"Release={row['release_digest'] or '<无>'}"
             )
 
+    # 将相同结论写入 GitHub Actions 摘要。
     summary = os.environ.get("GITHUB_STEP_SUMMARY")
     if summary:
         with open(summary, "a", encoding="utf-8") as fh:
