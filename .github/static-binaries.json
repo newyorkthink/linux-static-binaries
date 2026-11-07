@@ -82,7 +82,7 @@
       "license_file": "xclipglue/LICENSE",
       "asset_name": "xclipglue",
       "legacy_asset_names": "",
-      "apt_packages": "libxcb1-dev libxau-dev libxdmcp-dev",
+      "apt_packages": "",
       "timeout_minutes": 15
     }
   ]

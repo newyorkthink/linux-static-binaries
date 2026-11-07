@@ -71,8 +71,18 @@ PACKAGE_VERSION="$UPSTREAM_VERSION"
 
 ############### 静态编译 ###############
 # 按已确认的编译参数构建静态二进制。
-# 本程序专属处理：使用 C++ 和 XCB 静态链接参数构建程序。
-make -C "$SOURCE_DIR" progs CXX=g++ CXXFLAGS='-O2 -static -s' XCBLIB='-lxcb -lXau -lXdmcp'
+# 本程序专属处理：在 Alpine musl 环境内编译 C++ 主程序，避免静态 glibc 的 getaddrinfo 兼容性问题。
+command -v docker >/dev/null 2>&1 || { echo '错误：xclipglue 的 musl 静态构建需要 Docker。' >&2; exit 1; }
+docker run --rm --platform linux/amd64 --volume "$SOURCE_DIR:/src" --workdir /src alpine:3.24 sh -euc '
+    # 安装 musl C++ 工具链与同一 ABI 的 XCB、Xau、Xdmcp 静态库。
+    apk add --no-cache build-base pkgconf libxcb-static libxau-dev libxdmcp-dev libbsd-static libmd-dev
+    # 检查静态库确实可用，避免错误地链接容器中的动态库。
+    test -s /usr/lib/libxcb.a
+    test -s /usr/lib/libXau.a
+    test -s /usr/lib/libXdmcp.a
+    # 沿用上游 progs 目标和静态编译参数，并解析静态 XCB 的完整链接依赖。
+    make progs CXX=g++ CXXFLAGS="-O2 -static -s" XCBLIB="$(pkg-config --static --libs xcb xau xdmcp libbsd)"
+'
 
 ############### 整理产物 ###############
 # 将静态主程序复制到 dist 目录。
