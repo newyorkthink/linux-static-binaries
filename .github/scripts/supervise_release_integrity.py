@@ -49,6 +49,7 @@ def main() -> None:
     if not all(isinstance(asset, dict) for asset in assets):
         raise SystemExit("Release Assets 列表包含无效条目。")
 
+    # 同名 Release Asset 必须唯一，并逐项比较 GitHub digest 与版本清单的 SHA-256。
     assets_by_name: dict[str, list[dict]] = {}
     for asset in assets:
         name = asset.get("name")
@@ -104,6 +105,7 @@ def main() -> None:
             )
 
     keys = [row["software_key"] for row in mismatches if SOFTWARE_KEY_RE.fullmatch(row["software_key"])]
+    # 监督脚本只输出完整性结论，不直接修改 Release；后续自愈由工作流决定。
     write_output("has_mismatches", "true" if mismatches else "false")
     write_output("mismatch_count", str(len(mismatches)))
     write_output("mismatch_keys", json.dumps(keys, ensure_ascii=False, separators=(",", ":")))

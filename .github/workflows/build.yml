@@ -1,3 +1,5 @@
+# 统一静态构建入口：清单负责选择软件，matrix 为每个软件创建独立构建 Job。
+# 软件专属的上游解析、编译和产物生成仍由各自 build.sh 负责。
 name: Build Static Binaries
 
 run-name: >-

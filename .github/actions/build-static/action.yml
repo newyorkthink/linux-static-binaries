@@ -1,3 +1,5 @@
+# 共享静态构建与发布入口；只处理工具链、统一校验、Release 和版本清单。
+# 各软件自行解析官方上游版本并编译，不在公共入口重写专属构建命令。
 name: Build and Publish Static Binary
 description: Build one package, validate its static ELF output, publish its binary, and update the shared software_versions.json manifest.
 
@@ -67,6 +69,7 @@ runs:
       run: |
         set -Eeuo pipefail
 
+        # 发布前核对标识、产物、许可证、版本及本次构建的 SHA-256。
         [[ "$SOFTWARE_KEY" =~ ^[A-Za-z0-9._-]+$ ]] || { echo "software_key 非法：$SOFTWARE_KEY" >&2; exit 1; }
         [[ -s "$ARTIFACT_PATH" ]] || { echo "产物不存在或为空：$ARTIFACT_PATH" >&2; exit 1; }
         [[ -s "$CHECKSUM_PATH" ]] || { echo "SHA-256 文件不存在或为空：$CHECKSUM_PATH" >&2; exit 1; }
@@ -109,6 +112,7 @@ runs:
             --latest
         fi
 
+        # 先上传并核对当前软件的 Release 资产摘要，再进入清单更新流程。
         uploaded=false
         for attempt in $(seq 1 8); do
           if timeout 180 gh release upload latest "$ARTIFACT_PATH" \
@@ -154,6 +158,7 @@ runs:
           exit 1
         }
 
+        # 各软件构建独立执行；只有共享清单的读改写阶段等待互斥锁。
         manifest_name='software_versions.json'
         workdir="$RUNNER_TEMP/software-versions-$SOFTWARE_KEY"
         manifest="$workdir/$manifest_name"
@@ -258,6 +263,7 @@ runs:
           exit 1
         fi
 
+        # 取得写锁后只合并本软件条目，其余软件的版本信息保持不变。
         python3 - "$manifest" "$SOFTWARE_KEY" "$version" "$ASSET_NAME" "$release_sha256" <<'PY'
         import json, sys
         path, key, version, asset, sha256 = sys.argv[1:]
@@ -285,6 +291,7 @@ runs:
           exit 1
         }
 
+        # 上传新清单后重新按资产 ID 下载，核对摘要及当前软件条目。
         verified=false
         for attempt in $(seq 1 12); do
           mapfile -t manifest_rows < <(
@@ -326,6 +333,7 @@ runs:
         lock_owned=false
         trap - EXIT
 
+        # 新资产和统一版本清单确认一致后，再处理已经废弃的旧附件。
         for generated_legacy_name in "$ASSET_NAME.sha256" "$SOFTWARE_KEY-LICENSE.txt" "$SOFTWARE_KEY-version.txt"; do
           generated_legacy_asset_id="$(gh api "repos/$GITHUB_REPOSITORY/releases/$release_id/assets?per_page=100" --paginate --jq ".[] | select(.name == \"$generated_legacy_name\") | .id" | head -n 1)"
           if [[ -n "$generated_legacy_asset_id" ]]; then

@@ -31,6 +31,7 @@ def git_out(args: list[str]) -> str:
     return subprocess.check_output(args, text=True)
 
 
+# 从唯一构建清单读取软件参数；重复、错序或无效条目直接报错。
 def load_catalog() -> list[dict]:
     data = json.loads(CATALOG_PATH.read_text(encoding="utf-8"))
     packages = data.get("packages")
@@ -74,6 +75,7 @@ def load_catalog() -> list[dict]:
     return packages
 
 
+# 模糊输入先做名称标准化和精确匹配，再做包含匹配；歧义必须报错。
 def resolve_search(catalog: list[dict], query_raw: str) -> str:
     query = normalize_search(query_raw)
     if not query:
@@ -155,6 +157,7 @@ def main() -> None:
                 selected.update(by_key)
             else:
                 selected.add(selected_target)
+    # Push 只选择发生非文档变更的软件；共享构建入口变更时才全量选择。
     elif event_name == "push":
         files = changed_files(before_sha, after_sha)
         if any(
