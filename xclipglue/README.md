@@ -14,7 +14,7 @@ xclipglue 在两个 X11 display 之间双向同步所选的 X selection；默认
 
 ## 构建方式
 
-上游 `make progs` 只编译 C++ 主程序，依赖 XCB。正式构建使用 Alpine Linux 3.24 容器内的 musl C++ 工具链和 `libxcb-static`。由于 Alpine 的 Xau、Xdmcp 开发包没有提供所需静态库，构建脚本复用仓库公共下载与解包入口，获取并校验 X.Org 官方 `libXau`、`libXdmcp` 源码，再在容器内编译成静态库。软件专属依赖构建不进入公共函数，也不混用 Ubuntu 的 glibc 库。保留上游 `make progs`、`-O2 -static -s` 和原有源码版本校验；最终仍通过公共入口验证 ELF 无动态解释器或动态 `NEEDED` 项，并生成版本及 SHA-256。采用 musl 静态链接可避免 glibc `getaddrinfo` 的 NSS 兼容性警告；X11 Unix socket、TCP 连通性及远程认证仍取决于实际运行环境。本地执行构建脚本需要 Docker。
+上游 `make progs` 只编译 C++ 主程序，依赖 XCB。构建在 GitHub Actions 的 Ubuntu Runner 上原生执行，不使用容器。脚本通过仓库公共下载和解包入口取得经 SHA-256 校验的 Zig 工具链及 X.Org 官方 `libXau`、`libXdmcp`、`xcb-proto`、`libxcb` 源码，在独立构建目录中以 musl ABI 编译静态 XCB 依赖，再使用 `zig c++` 和 `-static` 链接主程序。该方案避免静态 glibc `getaddrinfo` 的 NSS 兼容性问题，不混用 Ubuntu 的 glibc 链接库。原有上游源码与 Commit 核对、`make progs` 目标、公共 ELF 完整性校验、版本记录和 SHA-256 发布流程均保持不变。最终产物仍需访问 X11 display 并具备相应认证；远程连接取决于实际网络及名称解析配置。
 
 上游默认 `make install` 还安装 `xclipglue.1` man page，仅用于文档；`make progs` 不需要 `halibut`，主程序无需 man page 即可运行。因此 Release 只发布 `xclipglue` 单文件。虽然链接静态，运行时仍需可访问的 X11 display、相应认证和 X server；远程模式需要用户自行提供远程启动命令。
 

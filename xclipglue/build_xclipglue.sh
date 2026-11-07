@@ -28,12 +28,6 @@ bash "$SCRIPT_DIR/../common/download/download_file.sh" "$SOURCE_URL" "$WORK_DIR/
 # 本程序专属处理：去除归档外层目录，保留真实源码层级。
 bash "$SCRIPT_DIR/../common/archive/extract_archive.sh" "$WORK_DIR/xclipglue.tar.gz" "$SOURCE_DIR" 1
 
-# 本程序专属处理：确认正式源码包含编译文件和 man page。
-[[ -s "$SOURCE_DIR/xclipglue.cpp" && -s "$SOURCE_DIR/Makefile" && -s "$SOURCE_DIR/xclipglue.1" ]] || {
-    echo '上游正式源码包缺少预期文件。' >&2
-    exit 1
-}
-
 # 本程序专属处理：克隆官方 Git HEAD，并核对实际 Commit。
 UPSTREAM_COMMIT="$(bash "$SCRIPT_DIR/../common/git/resolve_git_commit.sh" "$UPSTREAM_URL" HEAD)"
 bash "$SCRIPT_DIR/../common/git/clone_verified_source.sh" "$UPSTREAM_URL" "$GIT_DIR" "$UPSTREAM_COMMIT"
@@ -69,41 +63,74 @@ PY
 # 本程序专属处理：使用官网正式源码中的版本记录本次构建。
 PACKAGE_VERSION="$UPSTREAM_VERSION"
 
-############### 静态编译 ###############
-# 按已确认的编译参数构建静态二进制。
-# 本程序专属处理：Alpine 未提供 Xau、Xdmcp 静态库，使用 X.Org 官方源码补齐并核对摘要。
+############### 准备构建环境 ###############
+# 本程序专属处理：使用经官方 SHA-256 校验的 Zig 工具链原生构建 musl 静态二进制。
+ZIG_VERSION='0.15.2'
+ZIG_DIR="$WORK_DIR/zig"
+MUSL_PREFIX="$WORK_DIR/musl-prefix"
 bash "$SCRIPT_DIR/../common/download/download_file.sh" \
-    'https://www.x.org/releases/individual/lib/libXau-1.0.12.tar.xz' "$WORK_DIR/libXau-1.0.12.tar.xz" \
+    "https://ziglang.org/download/$ZIG_VERSION/zig-x86_64-linux-$ZIG_VERSION.tar.xz" "$WORK_DIR/zig.tar.xz" \
+    '02aa270f183da276e5b5920b1dac44a63f1a49e55050ebde3aecc9eb82f93239'
+bash "$SCRIPT_DIR/../common/archive/extract_archive.sh" "$WORK_DIR/zig.tar.xz" "$ZIG_DIR" 1
+
+# 本程序专属处理：下载带有固定校验摘要的 X.Org 静态依赖源码，保持目标软件版本动态解析。
+bash "$SCRIPT_DIR/../common/download/download_file.sh" \
+    'https://www.x.org/releases/individual/lib/libXau-1.0.12.tar.xz' "$WORK_DIR/libXau.tar.xz" \
     '74d0e4dfa3d39ad8939e99bda37f5967aba528211076828464d2777d477fc0fb'
 bash "$SCRIPT_DIR/../common/download/download_file.sh" \
-    'https://www.x.org/releases/individual/lib/libXdmcp-1.1.5.tar.xz' "$WORK_DIR/libXdmcp-1.1.5.tar.xz" \
+    'https://www.x.org/releases/individual/lib/libXdmcp-1.1.5.tar.xz' "$WORK_DIR/libXdmcp.tar.xz" \
     'd8a5222828c3adab70adf69a5583f1d32eb5ece04304f7f8392b6a353aa2228c'
-# 解包已校验的 X.Org 官方源码，保留当前软件独立构建目录。
-bash "$SCRIPT_DIR/../common/archive/extract_archive.sh" "$WORK_DIR/libXau-1.0.12.tar.xz" "$WORK_DIR/libXau-1.0.12" 1
-bash "$SCRIPT_DIR/../common/archive/extract_archive.sh" "$WORK_DIR/libXdmcp-1.1.5.tar.xz" "$WORK_DIR/libXdmcp-1.1.5" 1
+bash "$SCRIPT_DIR/../common/download/download_file.sh" \
+    'https://xorg.freedesktop.org/releases/individual/proto/xcb-proto-1.17.0.tar.xz' "$WORK_DIR/xcb-proto.tar.xz" \
+    '2c1bacd2110f4799f74de6ebb714b94cf6f80fb112316b1219480fd22562148c'
+bash "$SCRIPT_DIR/../common/download/download_file.sh" \
+    'https://xorg.freedesktop.org/releases/individual/lib/libxcb-1.17.0.tar.xz' "$WORK_DIR/libxcb.tar.xz" \
+    '599ebf9996710fea71622e6e184f3a8ad5b43d0e5fa8c4e407123c88a59a6d55'
 
-# 本程序专属处理：在 musl 环境内补齐静态 X11 依赖，再构建 xclipglue。
-command -v docker >/dev/null 2>&1 || { echo '错误：xclipglue 的 musl 静态构建需要 Docker。' >&2; exit 1; }
-docker run --rm --platform linux/amd64 --volume "$WORK_DIR:/work" --workdir /work/source alpine:3.24 sh -euc '
-    # 安装 musl 工具链、XCB 静态库及 X.Org 依赖头文件。
-    apk add --no-cache build-base pkgconf libxcb-static libxau-dev libxdmcp-dev libbsd-static libmd-dev
-    # 分别构建缺失的静态 Xau、Xdmcp 库；不修改公共工具或其他程序。
-    for dependency in /work/libXau-1.0.12 /work/libXdmcp-1.1.5; do
-        (
-            cd "$dependency"
-            ./configure --prefix=/usr/local --disable-shared --enable-static
-            make -j"$(nproc)"
-            make install
-        )
-    done
-    # 优先使用本次构建的静态依赖，禁止退回到共享库。
-    export PKG_CONFIG_PATH="/usr/local/lib/pkgconfig${PKG_CONFIG_PATH:+:$PKG_CONFIG_PATH}"
-    test -s /usr/lib/libxcb.a
-    test -s /usr/local/lib/libXau.a
-    test -s /usr/local/lib/libXdmcp.a
-    # 保留上游 make progs 目标，并使用完整静态链接参数。
-    make progs CXX=g++ CXXFLAGS="-O2 -static -s" XCBLIB="$(pkg-config --static --libs xcb xau xdmcp libbsd)"
-'
+# 使用仓库公共解包入口展开本次构建的依赖源码。
+bash "$SCRIPT_DIR/../common/archive/extract_archive.sh" "$WORK_DIR/libXau.tar.xz" "$WORK_DIR/libXau" 1
+bash "$SCRIPT_DIR/../common/archive/extract_archive.sh" "$WORK_DIR/libXdmcp.tar.xz" "$WORK_DIR/libXdmcp" 1
+bash "$SCRIPT_DIR/../common/archive/extract_archive.sh" "$WORK_DIR/xcb-proto.tar.xz" "$WORK_DIR/xcb-proto" 1
+bash "$SCRIPT_DIR/../common/archive/extract_archive.sh" "$WORK_DIR/libxcb.tar.xz" "$WORK_DIR/libxcb" 1
+
+# 本程序专属处理：全部依赖使用同一 musl ABI，优先链接独立前缀中的静态库。
+ZIG="$ZIG_DIR/zig"
+export CC="$ZIG cc -target x86_64-linux-musl"
+export CXX="$ZIG c++ -target x86_64-linux-musl"
+export PKG_CONFIG_PATH="$MUSL_PREFIX/lib/pkgconfig${PKG_CONFIG_PATH:+:$PKG_CONFIG_PATH}"
+export CPPFLAGS="-I$MUSL_PREFIX/include"
+export LDFLAGS="-L$MUSL_PREFIX/lib"
+
+############### 静态编译 ###############
+# 根据 X.Org 官方依赖关系，先构建 Xau、Xdmcp，再安装 XCB 协议文件并编译 XCB。
+for dependency in libXau libXdmcp; do
+    (
+        cd "$WORK_DIR/$dependency"
+        ./configure --host=x86_64-linux-musl --prefix="$MUSL_PREFIX" --disable-shared --enable-static
+        make -j"$(nproc)"
+        make install
+    )
+done
+
+# 安装与 libxcb 对应的协议描述及 Python 代码生成器。
+(
+    cd "$WORK_DIR/xcb-proto"
+    PYTHON=python3 ./configure --prefix="$MUSL_PREFIX"
+    make install
+)
+
+# 使用本次安装的协议生成器编译静态 XCB，避免链接 Ubuntu 的 glibc 版本。
+export PYTHONPATH="$(pkg-config --variable=pythondir xcb-proto)${PYTHONPATH:+:$PYTHONPATH}"
+(
+    cd "$WORK_DIR/libxcb"
+    ./configure --host=x86_64-linux-musl --prefix="$MUSL_PREFIX" --disable-shared --enable-static --without-doxygen
+    make -j"$(nproc)"
+    make install
+)
+
+# 本程序专属处理：保留上游 make progs 目标，使用 musl C++ 工具链和本次编译的静态 XCB 库。
+make -C "$SOURCE_DIR" progs CXX="$CXX" CXXFLAGS="-O2 -static -s -I$MUSL_PREFIX/include" \
+    XCBLIB="-L$MUSL_PREFIX/lib -lxcb -lXau -lXdmcp"
 
 ############### 整理产物 ###############
 # 将静态主程序复制到 dist 目录。

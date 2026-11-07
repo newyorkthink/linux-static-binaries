@@ -82,7 +82,7 @@
       "license_file": "xclipglue/LICENSE",
       "asset_name": "xclipglue",
       "legacy_asset_names": "",
-      "apt_packages": "",
+      "apt_packages": "pkg-config x11proto-dev xutils-dev libpthread-stubs0-dev",
       "timeout_minutes": 15
     }
   ]
