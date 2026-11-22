@@ -18,5 +18,7 @@
 - [文档索引](./docs/README.md)：按主题查找构建、发布和维护说明。
 - [构建与发布说明](./docs/build-and-release.md)：目录结构、动态版本、并发构建、Release、自愈与 Actions 清理。
 - [构建公共注释标准](./docs/build-comments.md)：固定注释、分区标题与软件专属处理规则。
+- [维护工具](./scripts/README.md)：同步、提交说明、附件维护和软件归档。
+- [归档索引](./archive/README.md)：已归档软件和恢复说明。
 - [公共工具说明](./common/README.md)：源码获取、下载、校验及其他共享入口。
 - 各软件的构建参数、运行方法和限制详见对应软件目录的 `README.md`。

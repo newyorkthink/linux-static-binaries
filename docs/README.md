@@ -7,6 +7,8 @@
 | [构建与发布说明](./build-and-release.md) | 目录结构、动态版本、并发构建、Release 发布、自愈机制及 Actions 清理。 |
 | [构建公共注释标准](./build-comments.md) | 固定中文注释、构建分区及软件专属处理。 |
 | [公共工具说明](../common/README.md) | GitHub API、源码获取、下载、归档解包及静态 ELF 校验入口。 |
+| [维护工具](../scripts/README.md) | 同步、提交说明、Release 附件维护和归档工具。 |
+| [文档模板](./templates/documentation/README.md) | 实机验证记录的填写方式。 |
 | [仓库操作规范](../AGENTS.md) | 修改授权、稳定基线、文件与工作流维护要求。 |
 
 各软件的官方来源、编译参数、运行方法和限制，请查看对应软件目录中的 `README.md`。

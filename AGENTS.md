@@ -380,6 +380,12 @@ Title: Latest
 
 ## 10. 提交与分支
 
+### 仓库维护入口
+
+- [维护工具](./scripts/README.md) 按同步、提交、Release 和归档分类。维护工具由用户或经本次授权的助手显式调用。
+- 归档使用 [半自动归档工具](./scripts/archive/archive_static_binary.md)。默认预览，执行前按本文件列明移动路径、更新的活动登记和自动构建影响。归档后的历史下载及版本记录留在原 Release，归档登记只保存在本仓库。
+- 提交说明可使用 [提交说明生成工具](./scripts/commit/format_submission.md)。实机验证只有在用户明确确认通过后才按 [记录模板](./docs/templates/documentation/real-machine-validation.md) 写入对应软件 README。静态检查和 Actions 构建成功分别记录实际验证范围。
+
 - 修改前读取 `main` 当前状态，避免覆盖并发改动。
 - 用户要求直接修改仓库时，不创建测试分支；完整检查后直接提交到 `main`。
 - 同一任务尽量保持一个逻辑 Commit；不得通过反复提交并等待 Actions 失败来试错。

@@ -11,6 +11,7 @@ from pathlib import Path
 
 SHA256_RE = re.compile(r"[0-9a-fA-F]{64}")
 SOFTWARE_KEY_RE = re.compile(r"[A-Za-z0-9._-]+")
+ARCHIVED_KEY_RE = re.compile(r"[a-z0-9][a-z0-9._-]*")
 
 
 # 读取并检查本次监督使用的 JSON 文件。
@@ -28,6 +29,37 @@ def write_output(name: str, value: str) -> None:
         raise SystemExit("缺少 GITHUB_OUTPUT。")
     with open(output, "a", encoding="utf-8") as fh:
         fh.write(f"{name}={value}\n")
+
+
+# 核对本仓库的归档登记，只认目录和原始资产标识一致的条目。
+def read_archived_assets(active: dict[str, str]) -> dict[str, str]:
+    archive = Path("archive")
+    catalog = read_json(archive / "static-binaries.json", "静态归档清单")
+    packages = catalog.get("packages") if isinstance(catalog, dict) else None
+    if not isinstance(packages, list):
+        raise SystemExit("静态归档清单缺少 packages 列表。")
+
+    archived: dict[str, str] = {}
+    for package in packages:
+        key = package.get("key") if isinstance(package, dict) else None
+        if (
+            not isinstance(key, str)
+            or not ARCHIVED_KEY_RE.fullmatch(key)
+            or key in active
+            or key in active.values()
+            or key in archived
+            or package.get("dir") != key
+            or package.get("software_key") != key
+            or package.get("asset_name") != key
+            or package.get("build_script") != f"{key}/build_{key}.sh"
+        ):
+            raise SystemExit(f"静态归档清单存在无效或冲突的登记：{key!r}")
+        directory = archive / key
+        script = directory / f"build_{key}.sh"
+        if archive.is_symlink() or directory.is_symlink() or script.is_symlink() or not script.is_file():
+            raise SystemExit(f"归档登记缺少可信的原构建脚本：{script}")
+        archived[key] = key
+    return archived
 
 
 # 比较版本清单与 Release 资产的 SHA-256 digest。
@@ -65,6 +97,7 @@ def main() -> None:
             raise SystemExit(f"静态构建清单存在重复软件或资产：{key}")
         expected_assets[key] = asset_name
         seen_asset_names.add(asset_name)
+    archived_assets = read_archived_assets(expected_assets)
 
     # 兼容 GitHub API 返回的单页和多页资产列表。
     if asset_pages and all(isinstance(page, list) for page in asset_pages):
@@ -82,6 +115,7 @@ def main() -> None:
             assets_by_name.setdefault(name, []).append(asset)
 
     mismatches: list[dict[str, str]] = []
+    archived_entry_count = 0
 
     # 遗漏单个条目时由既有监督工作流决定是否安全重建；多个遗漏不自动扩展构建范围。
     for expected_key, expected_asset in sorted(expected_assets.items()):
@@ -102,6 +136,11 @@ def main() -> None:
         asset_name = entry.get("asset") if isinstance(entry, dict) else None
         manifest_sha256 = entry.get("sha256") if isinstance(entry, dict) else None
         manifest_version = entry.get("version") if isinstance(entry, dict) else None
+
+        # 已归档软件的正式旧资产和版本记录保留为历史，不触发重新构建。
+        if software_key in archived_assets and asset_name == archived_assets[software_key]:
+            archived_entry_count += 1
+            continue
 
         if software_key not in expected_assets:
             reasons.append("软件不在当前构建清单中")
@@ -150,15 +189,19 @@ def main() -> None:
                 }
             )
 
-    keys = [row["software_key"] for row in mismatches if SOFTWARE_KEY_RE.fullmatch(row["software_key"])]
+    keys = [row["software_key"] for row in mismatches if row["software_key"] in expected_assets]
     # 监督脚本只输出完整性结论，不直接修改 Release；后续自愈由工作流决定。
     write_output("has_mismatches", "true" if mismatches else "false")
     write_output("mismatch_count", str(len(mismatches)))
     write_output("mismatch_keys", json.dumps(keys, ensure_ascii=False, separators=(",", ":")))
 
+    checked_count = len(manifest) - archived_entry_count
+    if archived_entry_count:
+        print(f"有 {archived_entry_count} 个已归档软件的历史版本条目。")
+
     # 将完整性检查结果输出到 Actions 日志。
     if not mismatches:
-        print(f"software_versions.json 的 {len(manifest)} 个条目全部与 Release Asset digest 一致。")
+        print(f"software_versions.json 的 {checked_count} 个活动条目全部与 Release Asset digest 一致。")
     else:
         print("发现以下 Release 完整性异常：")
         for row in mismatches:
@@ -173,8 +216,10 @@ def main() -> None:
     if summary:
         with open(summary, "a", encoding="utf-8") as fh:
             fh.write("## Release 完整性监督\n\n")
+            if archived_entry_count:
+                fh.write(f"有 {archived_entry_count} 个已归档软件的历史版本条目。\n\n")
             if not mismatches:
-                fh.write(f"`software_versions.json` 的 {len(manifest)} 个条目全部一致。\n")
+                fh.write(f"`software_versions.json` 的 {checked_count} 个活动条目全部一致。\n")
             else:
                 fh.write("| software_key | asset | 原因 |\n")
                 fh.write("|---|---|---|\n")

@@ -87,6 +87,12 @@ software_versions.json
 
 `.github/workflows/cleanup-actions-runs.yml` 每天自动删除七天前已经结束的 Actions 运行记录及其日志，也支持在 Actions 页面手动触发。清理不处理运行中或排队中的任务，不修改 Release、二进制资产、标签或提交。
 
+## 软件归档
+
+使用 [半自动归档工具](../scripts/archive/archive_static_binary.md) 预览指定软件的归档计划。显式执行后，工具将源码目录移入 `archive/`，在 [归档索引](../archive/README.md) 登记，并同步移除活动构建清单、手动构建选项和 Push 路径中的对应条目。
+
+已发布的静态单文件和既有版本记录继续提供历史下载。完整性监督依据活动清单检查软件和触发自愈，归档登记用于识别已退出构建的条目。归档提交改变活动清单和正式 Workflow 时，按现有 Push 条件构建仍在清单中的软件。
+
 ## 版本管理
 
 每个软件按以下方式管理版本：
